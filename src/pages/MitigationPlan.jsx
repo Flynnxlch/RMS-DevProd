@@ -103,6 +103,45 @@ export default function MitigationPlan() {
     }
   };
 
+  // RISK_CHAMPION can only plan mitigations for their own cabang
+  const champCabangBlocked =
+    user?.userRole === 'RISK_CHAMPION' &&
+    user?.regionCabang &&
+    user.regionCabang !== 'KPS' &&
+    risk?.regionCode &&
+    risk.regionCode !== user.regionCabang;
+
+  if (champCabangBlocked) {
+    return (
+      <>
+        <ContentHeader
+          title="Rencana Mitigasi"
+          breadcrumbs={[
+            { label: 'Beranda', path: '/' },
+            { label: 'Rencana Mitigasi', path: '/mitigations' },
+            { label: 'Akses Ditolak' },
+          ]}
+        />
+        <Card>
+          <div className="text-center py-10">
+            <i className="bi bi-shield-x text-4xl text-red-400 mb-3 block" />
+            <p className="text-sm font-semibold text-gray-800 dark:text-white mb-1">Akses Ditolak</p>
+            <p className="text-sm text-gray-500 dark:text-gray-400">
+              Kamu hanya dapat mengakses rencana mitigasi untuk risiko di cabangmu ({user.regionCabang}).
+            </p>
+            <button
+              type="button"
+              onClick={() => navigate('/mitigations')}
+              className="mt-4 inline-flex items-center gap-2 px-4 py-2 text-sm font-semibold text-white bg-[#0c9361] rounded-lg hover:bg-[#0a7a4f] transition-colors"
+            >
+              Kembali ke Daftar Mitigasi
+            </button>
+          </div>
+        </Card>
+      </>
+    );
+  }
+
   // RISK_ASSESSMENT has no access to create or edit mitigation plans
   if (user?.userRole === 'RISK_ASSESSMENT') {
     return (

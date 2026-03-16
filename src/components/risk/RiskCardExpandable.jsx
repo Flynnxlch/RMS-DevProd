@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
+import { useAuth } from '../../context/AuthContext';
 import { getRiskLevel } from '../../utils/risk';
 import { getRiskStatus, RISK_STATUS_CONFIG } from '../../utils/riskStatus';
 import { getCabangLabel, getCabangCode } from '../../utils/cabang';
@@ -35,6 +36,7 @@ export default function RiskCardExpandable({
   const [isExpanded, setIsExpanded] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const navigate = useNavigate();
+  const { user } = useAuth();
 
   if (!risk) return null;
 
@@ -221,7 +223,7 @@ export default function RiskCardExpandable({
             )}
 
             {/* Action buttons based on status */}
-            {showActionButtons && riskStatus === 'risiko-baru' && (
+            {showActionButtons && riskStatus === 'risiko-baru' && user?.userRole === 'RISK_OFFICER' && (
               <Link
                 to={`/risks/${risk.id}/risk-analysis`}
                 onClick={(e) => e.stopPropagation()}
@@ -232,7 +234,7 @@ export default function RiskCardExpandable({
                 <span className="hidden sm:inline">Analyze</span>
               </Link>
             )}
-            {showActionButtons && (riskStatus === 'analyzed' || riskStatus === 'planned' || riskStatus === 'need-improvement') && !risk.evaluationRequested && (
+            {showActionButtons && (riskStatus === 'analyzed' || riskStatus === 'planned' || riskStatus === 'need-improvement') && !risk.evaluationRequested && (user?.userRole === 'RISK_OFFICER' || user?.userRole === 'RISK_CHAMPION') && (
               <Link
                 to={`/risks/${risk.id}/mitigation-plan`}
                 onClick={(e) => e.stopPropagation()}

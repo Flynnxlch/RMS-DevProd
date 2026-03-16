@@ -10,8 +10,8 @@ import ContentHeader from '../components/ui/ContentHeader';
 import NotificationPopup from '../components/ui/NotificationPopup';
 import { Card } from '../components/widgets';
 import { API_ENDPOINTS, apiRequest } from '../config/api';
+import { useAuth } from '../context/AuthContext';
 import { useRisks } from '../context/RiskContext';
-import { useSidebar } from '../context/SidebarContext';
 import { getCabangCode } from '../utils/cabang';
 import { getRiskStatus, RISK_STATUS_CONFIG } from '../utils/riskStatus';
 import { logger } from '../utils/logger';
@@ -20,6 +20,7 @@ const TABS = [
   { id: 'identified', label: 'Risk Identified', icon: 'bi-clipboard-data' },
   { id: 'analysis', label: 'Risk Analysis', icon: 'bi-graph-up' },
   { id: 'planning', label: 'Mitigation Planning', icon: 'bi-shield-check' },
+  { id: 'measurement', label: 'Pengukuran Risiko', icon: 'bi-rulers' },
   { id: 'evaluation', label: 'Evaluasi Keberhasilan', icon: 'bi-calendar-check' },
 ];
 
@@ -27,7 +28,7 @@ export default function RiskDetail() {
   const { riskId } = useParams();
   const navigate = useNavigate();
   const { risks, updateRisk, refreshRisks } = useRisks();
-  const { isSidebarCollapsed, isMobile } = useSidebar();
+  const { user } = useAuth();
   const [activeTab, setActiveTab] = useState('identified');
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [notification, setNotification] = useState({ isOpen: false, type: 'error', title: '', message: '' });
@@ -44,8 +45,13 @@ export default function RiskDetail() {
     : RISK_STATUS_CONFIG['open-risk'];
 
   // Determine which tabs to show based on status (only if risk exists)
-  const hasAnalysis = riskStatus ? ['analyzed', 'planned', 'monitor', 'mitigate', 'need-improvement'].includes(riskStatus) : false;
+  // hasAnalysis also checks data presence — wizard-registered risks have analysis data at risiko-baru status
+  const hasAnalysis = riskStatus
+    ? ['analyzed', 'planned', 'monitor', 'mitigate', 'need-improvement', 'perlu-pengukuran'].includes(riskStatus) ||
+      !!(risk?.existingControl || risk?.keyRiskIndicator || risk?.controlType || (risk?.impactLevel > 0) || (risk?.possibilityType > 0))
+    : false;
   const hasPlanning = riskStatus ? ['planned', 'monitor', 'mitigate', 'need-improvement'].includes(riskStatus) : false;
+  const hasMeasurementData = !!(risk?.hasMeasurement || risk?.measurement);
   const hasEvaluation = riskStatus ? ['monitor', 'mitigate', 'need-improvement'].includes(riskStatus) : false;
 
   const availableTabs = useMemo(() => {
@@ -54,10 +60,11 @@ export default function RiskDetail() {
       if (tab.id === 'identified') return true;
       if (tab.id === 'analysis') return hasAnalysis;
       if (tab.id === 'planning') return hasPlanning;
+      if (tab.id === 'measurement') return hasMeasurementData;
       if (tab.id === 'evaluation') return hasEvaluation;
       return false;
     });
-  }, [riskStatus, hasAnalysis, hasPlanning, hasEvaluation]);
+  }, [riskStatus, hasAnalysis, hasPlanning, hasMeasurementData, hasEvaluation]);
 
   // Ensure active tab is available (moved to useEffect to avoid state update during render)
   // This hook must be called before any early return to maintain hook order
@@ -216,6 +223,8 @@ export default function RiskDetail() {
             onCancel={handleEditCancel}
           />
         );
+      case 'measurement':
+        return null;
       case 'evaluation':
         return (
           <EvaluationForm
@@ -236,16 +245,18 @@ export default function RiskDetail() {
       case 'identified':
         return (
           <div className="space-y-4">
-            <div className="flex justify-end mb-4">
-              <button
-                type="button"
-                onClick={() => setIsEditModalOpen(true)}
-                className="inline-flex items-center gap-2 px-4 py-2 text-sm font-semibold text-white bg-[#0d6efd] rounded-lg hover:bg-blue-600 transition-colors"
-              >
-                <i className="bi bi-pencil"></i>
-                Edit
-              </button>
-            </div>
+            {user?.userRole === 'RISK_ASSESSMENT' && (
+              <div className="flex justify-end mb-4">
+                <button
+                  type="button"
+                  onClick={() => setIsEditModalOpen(true)}
+                  className="inline-flex items-center gap-2 px-4 py-2 text-sm font-semibold text-white bg-[#0d6efd] rounded-lg hover:bg-blue-600 transition-colors"
+                >
+                  <i className="bi bi-pencil"></i>
+                  Edit
+                </button>
+              </div>
+            )}
             {/* Nama Perusahaan & Divisi */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
@@ -329,16 +340,18 @@ export default function RiskDetail() {
 
         return (
           <div className="space-y-6">
-            <div className="flex justify-end mb-4">
-              <button
-                type="button"
-                onClick={() => setIsEditModalOpen(true)}
-                className="inline-flex items-center gap-2 px-4 py-2 text-sm font-semibold text-white bg-[#0d6efd] rounded-lg hover:bg-blue-600 transition-colors"
-              >
-                <i className="bi bi-pencil"></i>
-                Edit
-              </button>
-            </div>
+            {user?.userRole === 'RISK_ASSESSMENT' && (
+              <div className="flex justify-end mb-4">
+                <button
+                  type="button"
+                  onClick={() => setIsEditModalOpen(true)}
+                  className="inline-flex items-center gap-2 px-4 py-2 text-sm font-semibold text-white bg-[#0d6efd] rounded-lg hover:bg-blue-600 transition-colors"
+                >
+                  <i className="bi bi-pencil"></i>
+                  Edit
+                </button>
+              </div>
+            )}
 
             {/* Bagian 1: Kontrol yang Ada */}
             <div className="border border-gray-200 dark:border-gray-700 rounded-lg p-4 bg-gray-50 dark:bg-gray-800/40">
@@ -414,110 +427,6 @@ export default function RiskDetail() {
               </div>
             </div>
 
-            {/* Bagian 3: Pengukuran Resiko */}
-            <div className="border border-gray-200 dark:border-gray-700 rounded-lg p-4 bg-gray-50 dark:bg-gray-800/40">
-              <h3 className="text-sm font-semibold text-gray-900 dark:text-white mb-4">Bagian 3: Pengukuran Resiko</h3>
-              
-              <div className="space-y-6">
-                {/* Inherent Risk */}
-                <div className="border-l-4 border-blue-500 pl-4">
-                  <h4 className="text-sm font-semibold text-gray-900 dark:text-white mb-3">Inherent Risk (Risiko awal sebelum adanya kontrol)</h4>
-                  
-                  <div className="space-y-4">
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      <div>
-                        <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-1">Tingkat Dampak</label>
-                        <p className="text-sm text-gray-900 dark:text-white">
-                          {risk.impactLevel ? `${risk.impactLevel} — ${['', 'Insignificant', 'Minor', 'Moderate', 'Major', 'Severe', 'Critical'][risk.impactLevel] || 'N/A'}` : 'N/A'}
-                        </p>
-                      </div>
-
-                      <div>
-                        <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-1">Deskripsi Dampak</label>
-                        <p className="text-sm text-gray-900 dark:text-white whitespace-pre-wrap">
-                          {risk.impactDescription || 'N/A'}
-                        </p>
-                      </div>
-                    </div>
-
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      <div>
-                        <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-1">Tingkat Kemungkinan</label>
-                        <p className="text-sm text-gray-900 dark:text-white">
-                          {risk.possibilityType ? `${risk.possibilityType} — ${['', 'Rare', 'Unlikely', 'Possible', 'Likely', 'Almost Certain'][risk.possibilityType] || 'N/A'}` : 'N/A'}
-                        </p>
-                      </div>
-
-                      <div>
-                        <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-1">Deskripsi Kemungkinan</label>
-                        <p className="text-sm text-gray-900 dark:text-white whitespace-pre-wrap">
-                          {risk.possibilityDescription || 'N/A'}
-                        </p>
-                      </div>
-                    </div>
-
-                    {risk.inherentScore > 0 && (
-                      <div className="flex items-center gap-3 p-3 bg-gray-50 dark:bg-gray-800/50 rounded-lg">
-                        <span className="text-sm font-semibold text-gray-700 dark:text-gray-300">Tingkat Risiko Inheren:</span>
-                        <RiskLevelBadge score={risk.inherentScore} />
-                        <span className="text-sm font-bold text-gray-900 dark:text-white">{risk.inherentScore}/25</span>
-                      </div>
-                    )}
-                  </div>
-                </div>
-
-                {/* Residual Risk */}
-                <div className="border-l-4 border-green-500 pl-4">
-                  <h4 className="text-sm font-semibold text-gray-900 dark:text-white mb-3">Residual Risk (Risiko yang diharapkan setelah kontrol)</h4>
-                  
-                  <div className="space-y-4">
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      <div>
-                        <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-1">Tingkat Dampak Residual</label>
-                        <p className="text-sm text-gray-900 dark:text-white">
-                          {risk.residualImpactLevel && risk.residualImpactLevel > 0 
-                            ? `${risk.residualImpactLevel} — ${['', 'Insignificant', 'Minor', 'Moderate', 'Major', 'Severe', 'Critical'][risk.residualImpactLevel] || 'N/A'}`
-                            : 'N/A'}
-                        </p>
-                      </div>
-
-                      <div>
-                        <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-1">Deskripsi Dampak Residual</label>
-                        <p className="text-sm text-gray-900 dark:text-white whitespace-pre-wrap">
-                          {risk.residualImpactDescription || 'N/A'}
-                        </p>
-                      </div>
-                    </div>
-
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      <div>
-                        <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-1">Tingkat Kemungkinan Residual</label>
-                        <p className="text-sm text-gray-900 dark:text-white">
-                          {risk.residualPossibilityType && risk.residualPossibilityType > 0
-                            ? `${risk.residualPossibilityType} — ${['', 'Rare', 'Unlikely', 'Possible', 'Likely', 'Almost Certain'][risk.residualPossibilityType] || 'N/A'}`
-                            : 'N/A'}
-                        </p>
-                      </div>
-
-                      <div>
-                        <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-1">Deskripsi Kemungkinan Residual</label>
-                        <p className="text-sm text-gray-900 dark:text-white whitespace-pre-wrap">
-                          {risk.residualPossibilityDescription || 'N/A'}
-                        </p>
-                      </div>
-                    </div>
-
-                    {risk.residualScore > 0 && (
-                      <div className="flex items-center gap-3 p-3 bg-gray-50 dark:bg-gray-800/50 rounded-lg">
-                        <span className="text-sm font-semibold text-gray-700 dark:text-gray-300">Tingkat Risiko Residual:</span>
-                        <RiskLevelBadge score={risk.residualScore} />
-                        <span className="text-sm font-bold text-gray-900 dark:text-white">{risk.residualScore}/25</span>
-                      </div>
-                    )}
-                  </div>
-                </div>
-              </div>
-            </div>
           </div>
         );
       }
@@ -525,16 +434,18 @@ export default function RiskDetail() {
       case 'planning': {
         return (
           <div className="space-y-4">
-            <div className="flex justify-end mb-4">
-              <button
-                type="button"
-                onClick={() => setIsEditModalOpen(true)}
-                className="inline-flex items-center gap-2 px-4 py-2 text-sm font-semibold text-white bg-[#0d6efd] rounded-lg hover:bg-blue-600 transition-colors"
-              >
-                <i className="bi bi-pencil"></i>
-                Edit
-              </button>
-            </div>
+            {user?.userRole === 'RISK_ASSESSMENT' && (
+              <div className="flex justify-end mb-4">
+                <button
+                  type="button"
+                  onClick={() => setIsEditModalOpen(true)}
+                  className="inline-flex items-center gap-2 px-4 py-2 text-sm font-semibold text-white bg-[#0d6efd] rounded-lg hover:bg-blue-600 transition-colors"
+                >
+                  <i className="bi bi-pencil"></i>
+                  Edit
+                </button>
+              </div>
+            )}
             {/* Bagian 1 */}
             <div className="space-y-4">
               <div>
@@ -680,19 +591,121 @@ export default function RiskDetail() {
         );
       }
 
+      case 'measurement': {
+        const m = risk.measurement;
+        const impactLabels = ['', 'Rendah', 'Rendah - Menengah', 'Menengah', 'Menengah - Tinggi', 'Tinggi'];
+        const possibilityLabels = ['', 'Sangat Jarang Terjadi', 'Jarang Terjadi', 'Bisa Terjadi', 'Sangat Mungkin Terjadi', 'Hampir Pasti Terjadi'];
+        return (
+          <div className="space-y-6">
+            {/* Section A */}
+            <div className="border border-gray-200 dark:border-gray-700 rounded-lg p-4 bg-gray-50 dark:bg-gray-800/40">
+              <h3 className="text-sm font-semibold text-gray-900 dark:text-white mb-4">Section A: Risk Treatment Option</h3>
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-1">Risk Treatment Option</label>
+                <p className="text-sm text-gray-900 dark:text-white">{m?.treatmentOption || 'N/A'}</p>
+              </div>
+            </div>
+
+            {/* Section B */}
+            <div className="border border-gray-200 dark:border-gray-700 rounded-lg p-4 bg-gray-50 dark:bg-gray-800/40">
+              <h3 className="text-sm font-semibold text-gray-900 dark:text-white mb-4">Section B: Pengukuran Risiko</h3>
+              <div className="space-y-6">
+                {/* Inherent Risk */}
+                <div className="border-l-4 border-blue-500 pl-4">
+                  <h4 className="text-sm font-semibold text-gray-900 dark:text-white mb-3">Inherent Risk (Risiko awal sebelum adanya kontrol)</h4>
+                  <div className="space-y-4">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-1">Tingkat Dampak</label>
+                        <p className="text-sm text-gray-900 dark:text-white">
+                          {m?.impactLevel ? `${m.impactLevel} — ${impactLabels[m.impactLevel] || 'N/A'}` : 'N/A'}
+                        </p>
+                      </div>
+                      <div>
+                        <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-1">Deskripsi Dampak</label>
+                        <p className="text-sm text-gray-900 dark:text-white whitespace-pre-wrap">{m?.impactDescription || 'N/A'}</p>
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-1">Tingkat Kemungkinan</label>
+                        <p className="text-sm text-gray-900 dark:text-white">
+                          {m?.possibilityType ? `${m.possibilityType} — ${possibilityLabels[m.possibilityType] || 'N/A'}` : 'N/A'}
+                        </p>
+                      </div>
+                      <div>
+                        <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-1">Deskripsi Kemungkinan</label>
+                        <p className="text-sm text-gray-900 dark:text-white whitespace-pre-wrap">{m?.possibilityDescription || 'N/A'}</p>
+                      </div>
+                    </div>
+                    {m?.inherentScore > 0 && (
+                      <div className="flex items-center gap-3 p-3 bg-white dark:bg-gray-800/50 rounded-lg border border-gray-200 dark:border-gray-700">
+                        <span className="text-sm font-semibold text-gray-700 dark:text-gray-300">Tingkat Risiko Inheren:</span>
+                        <RiskLevelBadge score={m.inherentScore} />
+                        <span className="text-sm font-bold text-gray-900 dark:text-white">{m.inherentScore}/25</span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* Residual Risk */}
+                <div className="border-l-4 border-green-500 pl-4">
+                  <h4 className="text-sm font-semibold text-gray-900 dark:text-white mb-3">Residual Risk (Risiko yang diharapkan setelah kontrol)</h4>
+                  <div className="space-y-4">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-1">Tingkat Dampak Residual</label>
+                        <p className="text-sm text-gray-900 dark:text-white">
+                          {m?.residualImpactLevel ? `${m.residualImpactLevel} — ${impactLabels[m.residualImpactLevel] || 'N/A'}` : 'N/A'}
+                        </p>
+                      </div>
+                      <div>
+                        <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-1">Deskripsi Dampak Residual</label>
+                        <p className="text-sm text-gray-900 dark:text-white whitespace-pre-wrap">{m?.residualImpactDescription || 'N/A'}</p>
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-1">Tingkat Kemungkinan Residual</label>
+                        <p className="text-sm text-gray-900 dark:text-white">
+                          {m?.residualPossibilityType ? `${m.residualPossibilityType} — ${possibilityLabels[m.residualPossibilityType] || 'N/A'}` : 'N/A'}
+                        </p>
+                      </div>
+                      <div>
+                        <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-1">Deskripsi Kemungkinan Residual</label>
+                        <p className="text-sm text-gray-900 dark:text-white whitespace-pre-wrap">{m?.residualPossibilityDescription || 'N/A'}</p>
+                      </div>
+                    </div>
+                    {m?.residualScore > 0 && (
+                      <div className="flex items-center gap-3 p-3 bg-white dark:bg-gray-800/50 rounded-lg border border-gray-200 dark:border-gray-700">
+                        <span className="text-sm font-semibold text-gray-700 dark:text-gray-300">Tingkat Risiko Residual:</span>
+                        <RiskLevelBadge score={m.residualScore} />
+                        <span className="text-sm font-bold text-gray-900 dark:text-white">{m.residualScore}/25</span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        );
+      }
+
       case 'evaluation': {
         return (
           <div className="space-y-4">
-            <div className="flex justify-end mb-4">
-              <button
-                type="button"
-                onClick={() => setIsEditModalOpen(true)}
-                className="inline-flex items-center gap-2 px-4 py-2 text-sm font-semibold text-white bg-[#0d6efd] rounded-lg hover:bg-blue-600 transition-colors"
-              >
-                <i className="bi bi-pencil"></i>
-                Edit
-              </button>
-            </div>
+            {user?.userRole === 'RISK_ASSESSMENT' && (
+              <div className="flex justify-end mb-4">
+                <button
+                  type="button"
+                  onClick={() => setIsEditModalOpen(true)}
+                  className="inline-flex items-center gap-2 px-4 py-2 text-sm font-semibold text-white bg-[#0d6efd] rounded-lg hover:bg-blue-600 transition-colors"
+                >
+                  <i className="bi bi-pencil"></i>
+                  Edit
+                </button>
+              </div>
+            )}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
                 <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-1">Status Evaluasi</label>
@@ -819,20 +832,11 @@ export default function RiskDetail() {
               scrollbar-width: none;
             }
           `}</style>
-          <div className="fixed inset-0 z-50 flex items-start justify-center pt-20 pb-4 bg-black/50 backdrop-blur-sm" onClick={() => setIsEditModalOpen(false)}>
-            <div 
-              className={`bg-white dark:bg-gray-800 rounded-lg shadow-xl w-full flex flex-col transition-all duration-300 ${
-                activeTab === 'identified' 
-                  ? 'max-w-2xl max-h-[calc(100vh-6rem)]' 
-                  : 'max-w-3xl max-h-[calc(100vh-6rem)]'
-              } ${
-                isMobile 
-                  ? 'mx-4'
-                  : !isSidebarCollapsed 
-                    ? 'ml-[calc(var(--sidebar-width)+1rem)] mr-4'
-                    : 'ml-[calc(var(--sidebar-mini-width)+1rem)] mr-4'
+          <div className="fixed inset-0 z-50 flex items-start justify-center pt-16 pb-4 px-4 bg-black/50 backdrop-blur-sm">
+            <div
+              className={`bg-white dark:bg-gray-800 rounded-lg shadow-xl w-full mx-auto flex flex-col max-h-[calc(100vh-5rem)] ${
+                activeTab === 'identified' ? 'max-w-2xl' : 'max-w-3xl'
               }`}
-              onClick={(e) => e.stopPropagation()}
             >
               <div className="shrink-0 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-6 py-4 flex items-center justify-between rounded-t-lg">
                 <h2 className="text-lg font-semibold text-gray-900 dark:text-white">

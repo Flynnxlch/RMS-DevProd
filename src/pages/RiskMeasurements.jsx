@@ -57,24 +57,20 @@ export default function RiskMeasurements() {
       />
 
       {selectedRisk ? (
-        <Card>
-          <div className="flex items-center justify-between mb-6">
-            <div>
-              <h2 className="text-base font-semibold text-gray-900 dark:text-white">
-                Formulir Pengukuran Risiko
-              </h2>
-              <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">{selectedRisk.id}</p>
-            </div>
+        <Card
+          title="Formulir Pengukuran Risiko"
+          headerExtra={
             <button
               type="button"
               onClick={() => setSelectedRisk(null)}
-              className="text-sm text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors"
+              className="inline-flex items-center gap-1.5 text-sm font-medium text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors"
             >
-              <i className="bi bi-arrow-left mr-1.5" />
-              Kembali ke Daftar
+              <i className="bi bi-arrow-left" />
+              Kembali
             </button>
-          </div>
-
+          }
+        >
+          <p className="text-sm text-gray-500 dark:text-gray-400 mb-5">{selectedRisk.id}</p>
           <RiskMeasurementForm
             risk={selectedRisk}
             onSubmit={handleSubmit}
@@ -83,16 +79,7 @@ export default function RiskMeasurements() {
           />
         </Card>
       ) : (
-        <Card>
-          <div className="mb-4">
-            <h2 className="text-base font-semibold text-gray-900 dark:text-white">
-              Daftar Risiko Perlu Pengukuran
-            </h2>
-            <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">
-              Risiko yang telah disetujui dan siap untuk diukur.
-            </p>
-          </div>
-
+        <Card title="Daftar Risiko Perlu Pengukuran">
           {eligibleRisks.length === 0 ? (
             <div className="text-center py-12">
               <i className="bi bi-rulers text-4xl text-gray-300 dark:text-gray-600 mb-3 block" />
@@ -105,17 +92,23 @@ export default function RiskMeasurements() {
               {eligibleRisks.map((risk) => (
                 <div
                   key={risk.id}
-                  className="flex items-start justify-between gap-4 p-4 rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/40 hover:border-[#0c9361] dark:hover:border-[#0c9361] transition-colors"
+                  className="flex items-start justify-between gap-4 p-4 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800/50 hover:border-gray-300 dark:hover:border-gray-600 transition-colors"
                 >
                   <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 mb-1 flex-wrap">
-                      <span className="text-xs font-mono text-gray-500 dark:text-gray-400">{risk.id}</span>
+                    <div className="flex items-center gap-2 mb-1.5 flex-wrap">
+                      <span className="text-xs font-mono text-gray-400 dark:text-gray-500">{risk.id}</span>
                       <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-semibold ${statusConfig.badgeClass}`}>
                         <span className="h-1.5 w-1.5 rounded-full bg-current opacity-60" />
                         {statusConfig.label}
                       </span>
+                      {risk.regionCode && (
+                        <span className="text-xs text-gray-400 dark:text-gray-500">
+                          <i className="bi bi-geo-alt mr-0.5" />
+                          {risk.regionCode}
+                        </span>
+                      )}
                     </div>
-                    <p className="text-sm font-semibold text-gray-900 dark:text-white truncate">
+                    <p className="text-sm font-semibold text-gray-900 dark:text-white">
                       {risk.riskEvent || risk.title}
                     </p>
                     {risk.organization && (

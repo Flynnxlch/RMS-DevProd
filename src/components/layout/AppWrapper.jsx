@@ -1,12 +1,16 @@
 import Footer from './Footer';
 import Header from './Header';
 import Sidebar from './Sidebar';
+import BuletinNotification from '../ui/BuletinNotification';
 
 export default function AppWrapper({ children }) {
   return (
     <div className="flex min-h-screen bg-[var(--color-body-bg)] dark:bg-[var(--color-body-bg-dark)] transition-colors duration-300">
       {/* Sidebar */}
       <Sidebar />
+
+      {/* Buletin unread notification popup */}
+      <BuletinNotification />
 
       {/* Main content area */}
       <div className="flex-1 flex flex-col min-h-screen transition-all duration-300 ease-in-out">

@@ -45,12 +45,6 @@ const MENU_RISK_ASSESSMENT = [
   { id: 'risk-measurement',  label: 'Pengukuran Risiko',       icon: 'bi-rulers',         path: '/measurements' },
   { id: 'settings',          label: 'Pengaturan',              icon: 'bi-gear',           path: '/settings' },
   { id: 'guide',             label: 'Buletin',                 icon: 'bi-book',           path: '/guide' },
-  // Admin panel section
-  { id: 'admin-header',      label: 'Admin Panel',             type: 'header' },
-  { id: 'admin-users',       label: 'Manajemen Pengguna',      icon: 'bi-people',         path: '/admin/users' },
-  { id: 'admin-reg-requests',label: 'Permintaan Registrasi',   icon: 'bi-person-plus',    path: '/admin/registration-requests' },
-  { id: 'admin-other-req',   label: 'Permintaan Lainnya',      icon: 'bi-inbox',          path: '/admin/other-requests' },
-  { id: 'admin-regulations', label: 'Update Peraturan Terbaru',icon: 'bi-newspaper',      path: '/admin/regulations' },
 ];
 
 const MENU_BY_ROLE = {

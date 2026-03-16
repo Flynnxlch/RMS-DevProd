@@ -29,7 +29,7 @@ export default function UpdatePeraturanTerbaru() {
   const [notification, setNotification] = useState({ isOpen: false, type: 'error', title: '', message: '' });
   const [formData, setFormData] = useState({
     title: '',
-    category: 'Peraturan Baru',
+    category: 'Pedoman',
     type: 'text',
     content: '',
     image: null,
@@ -136,7 +136,7 @@ export default function UpdatePeraturanTerbaru() {
       // Reset form
       setFormData({
         title: '',
-        category: 'Peraturan Baru',
+        category: 'Pedoman',
         type: 'text',
         content: '',
         image: null,
@@ -251,7 +251,6 @@ export default function UpdatePeraturanTerbaru() {
                 onChange={(e) => setFormData({ ...formData, category: e.target.value })}
                 className="w-full rounded-lg border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-700 px-3 py-2 text-sm text-gray-900 dark:text-gray-100"
               >
-                <option value="Peraturan Baru">Peraturan Baru</option>
                 <option value="Pedoman">Pedoman</option>
                 <option value="Update Kriteria">Update Kriteria</option>
                 <option value="Pemberitahuan">Pemberitahuan</option>
@@ -331,7 +330,7 @@ export default function UpdatePeraturanTerbaru() {
                 setShowAddForm(false);
                 setFormData({
                   title: '',
-                  category: 'Peraturan Baru',
+                  category: 'Pedoman',
                   type: 'text',
                   content: '',
                   image: null,

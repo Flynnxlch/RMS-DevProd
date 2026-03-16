@@ -1,16 +1,18 @@
 import { useMemo, useState, useEffect } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import RiskCardExpandable from '../components/risk/RiskCardExpandable';
+import { useAuth } from '../context/AuthContext';
 import ContentHeader from '../components/ui/ContentHeader';
 import LoadingSpinner from '../components/ui/LoadingSpinner';
 import { Card } from '../components/widgets';
 import { useRisks } from '../context/RiskContext';
-import { RISK_LEVELS, getRiskLevel, sortRisksByScoreDesc } from '../utils/risk';
+import { RISK_LEVELS, getRiskLevel } from '../utils/risk';
 
 const RISKS_PER_PAGE = 6;
 
 export default function RiskRegister() {
   const { risks, removeRisk, fetchRisks, isLoading: risksLoading } = useRisks();
+  const { user } = useAuth();
   const [searchParams] = useSearchParams();
   const [query, setQuery] = useState('');
   const [sortBy, setSortBy] = useState('highest-risk'); // Default: Highest Risk
@@ -35,11 +37,9 @@ export default function RiskRegister() {
     setCurrentPage(1);
   }, [query, levelKey, sortBy]);
 
-  // Filter risks by search query and level (frontend filtering for instant results)
-  // Sorting is already applied in backend, so filteredRisks maintains the sort order
   const filteredRisks = useMemo(() => {
     const q = query.trim().toLowerCase();
-    
+
     return risks.filter((r) => {
       // Filter by level if levelKey is set (from sidebar)
       if (levelKey) {
@@ -47,7 +47,7 @@ export default function RiskRegister() {
         const matchesLevel = lvl ? lvl.key === levelKey : false;
         if (!matchesLevel) return false;
       }
-      
+
       // Filter by search query
       if (!q) return true;
       const hay = `${r.id} ${r.title || r.riskEvent || ''} ${r.category || ''} ${r.owner || ''} ${r.location || ''} ${r.regionCode || ''}`.toLowerCase();
@@ -77,10 +77,11 @@ export default function RiskRegister() {
 
   const handleRemoveRisk = async (riskId) => {
     setIsLoading(true);
-    // Simulate async operation with delay
-    await new Promise((resolve) => setTimeout(resolve, 280));
-    removeRisk(riskId);
-    setIsLoading(false);
+    try {
+      await removeRisk(riskId);
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const inputBase =
@@ -99,7 +100,7 @@ export default function RiskRegister() {
       <Card
         title="Semua Risiko"
         headerExtra={
-          <div className="flex items-center gap-2">
+          user?.userRole === 'RISK_OFFICER' ? (
             <Link
               to="/risks/new"
               className="inline-flex items-center rounded-lg bg-[#0d6efd] px-3 py-2 text-sm font-semibold text-white hover:bg-blue-600 transition-colors"
@@ -107,11 +108,11 @@ export default function RiskRegister() {
               <i className="bi bi-plus-circle mr-2" />
               Risiko Baru
             </Link>
-          </div>
+          ) : null
         }
       >
         <div className="grid grid-cols-1 sm:grid-cols-12 gap-3 mb-4">
-          <div className="sm:col-span-7">
+          <div className="sm:col-span-8">
             <input
               className={inputBase}
               value={query}
@@ -119,7 +120,7 @@ export default function RiskRegister() {
               placeholder="Cari berdasarkan id, judul, kategori, pemilik, lokasi..."
             />
           </div>
-          <div className="sm:col-span-5">
+          <div className="sm:col-span-4">
             <select
               className={inputBase}
               value={sortBy}
@@ -141,8 +142,8 @@ export default function RiskRegister() {
                 risk={r}
                 showRiskLevel={true}
                 showScoreBar={true}
-                showRemoveButton={true}
-                showActionButtons={true}
+                showRemoveButton={user?.userRole === 'RISK_ASSESSMENT'}
+                showActionButtons={user?.userRole !== 'RISK_ASSESSMENT'}
                 showEvaluateButton={false}
                 showRiskLevelText={false}
                 showLocation={true}
@@ -154,7 +155,9 @@ export default function RiskRegister() {
 
             {!filteredRisks.length && !risksLoading && (
               <div className="text-sm text-gray-500 dark:text-gray-400">
-                Tidak ada risiko ditemukan. <Link className="text-blue-600 dark:text-blue-400 hover:underline transition-colors" to="/risks/new">Buat risiko baru</Link>.
+                Tidak ada risiko ditemukan.{user?.userRole === 'RISK_OFFICER' && (
+                  <> <Link className="text-blue-600 dark:text-blue-400 hover:underline transition-colors" to="/risks/new">Buat risiko baru</Link>.</>
+                )}
               </div>
             )}
           </div>

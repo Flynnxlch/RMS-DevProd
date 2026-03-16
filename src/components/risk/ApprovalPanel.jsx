@@ -23,8 +23,16 @@ export default function ApprovalPanel({ risk, onActionComplete }) {
   // Only render for 'risiko-baru' status
   if (riskStatus !== 'risiko-baru') return null;
 
+  // RISK_CHAMPION can only approve risks from their own cabang (unless KPS)
+  const champCabangMatch =
+    user?.userRole !== 'RISK_CHAMPION' ||
+    !user?.regionCabang ||
+    user.regionCabang === 'KPS' ||
+    risk?.regionCode === user.regionCabang;
+
   const isApprover =
-    user?.userRole === 'RISK_CHAMPION' || user?.userRole === 'RISK_ASSESSMENT';
+    (user?.userRole === 'RISK_CHAMPION' || user?.userRole === 'RISK_ASSESSMENT') &&
+    champCabangMatch;
 
   const approvals = risk.approvals || [];
 

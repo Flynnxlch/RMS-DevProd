@@ -1,6 +1,6 @@
 // Utility functions for cabang/region code handling
 
-const CABANG_OPTIONS = [
+export const CABANG_OPTIONS = [
   { code: 'Kantor Pusat', label: 'KPS' },
   { code: 'SBU Cargo & Warehouse', label: 'CGO' },
   { code: 'HUB Bandara Internasional Soekarno-Hatta, Cengkareng', label: 'CGK' },
