@@ -329,7 +329,7 @@ export default function Dashboard() {
                 height={Math.max(220, categorySummary.length * 36)}
               />
             ) : (
-              <div className="text-sm text-gray-500 dark:text-gray-400">Belum ada risiko.</div>
+              <div className="flex items-center justify-center min-h-[200px] text-sm text-gray-400 dark:text-gray-500">Belum ada risiko.</div>
             )}
           </div>
         </div>
@@ -374,7 +374,7 @@ export default function Dashboard() {
                 </div>
               </div>
             ) : (
-              <div className="text-sm text-gray-500 dark:text-gray-400">Belum ada risiko.</div>
+              <div className="flex items-center justify-center py-12 text-sm text-gray-400 dark:text-gray-500">Belum ada risiko.</div>
             )}
           </Card>
 
@@ -408,7 +408,7 @@ export default function Dashboard() {
                     </div>
                   </>
                 ) : (
-                  <div className="text-sm text-gray-500 dark:text-gray-400 py-8">Belum ada risiko.</div>
+                  <div className="flex items-center justify-center py-12 text-sm text-gray-400 dark:text-gray-500">Belum ada risiko.</div>
                 )}
               </div>
 
@@ -529,7 +529,7 @@ export default function Dashboard() {
                 />
               ))}
               {!topRisks.length && (
-                <div className="text-sm text-gray-500 dark:text-gray-400">Belum ada risiko. Tambahkan menggunakan "Entri Risiko Baru".</div>
+                <div className="flex items-center justify-center py-8 text-sm text-gray-400 dark:text-gray-500 text-center">Belum ada risiko. Tambahkan menggunakan "Entri Risiko Baru".</div>
               )}
             </div>
           </Card>
