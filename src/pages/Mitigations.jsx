@@ -11,30 +11,10 @@ export default function Mitigations() {
   const { risks } = useRisks();
   const navigate = useNavigate();
 
-  // Debug log to trace eligible mitigation cards rendering
-  console.log('[Mitigations] total risks:', risks?.length, risks);
-
-  // Show risks that can have mitigation plans:
-  // - "Analyzed" (has analysis but no mitigation plan yet)
-  // - "Planned" (has mitigation plan but hasn't been evaluated yet)
-  // - "Need Improvement" (has evaluation but not effective - evaluationStatus !== 'effective')
-  // Exclude risks that have been accepted (evaluationStatus === 'effective')
+  // Only show risks with "Mitigate" status
   const eligible = useMemo(() => {
-    return sortRisksByScoreDesc(risks).filter((r) => {
-      const status = getRiskStatus(r);
-      const evaluationStatus = r.evaluationStatus;
-      
-      // Exclude risks that have been accepted (effective)
-      if (evaluationStatus === 'effective') {
-        return false;
-      }
-      
-      // Show risks that are analyzed, planned, or need-improvement (rejected evaluation)
-      return status === 'analyzed' || status === 'planned' || status === 'need-improvement';
-    });
+    return sortRisksByScoreDesc(risks).filter((r) => getRiskStatus(r) === 'mitigate');
   }, [risks]);
-
-  console.log('[Mitigations] eligible for mitigation:', eligible?.length, eligible);
 
   return (
     <>
@@ -59,7 +39,7 @@ export default function Mitigations() {
           ))}
           {!eligible.length && (
             <div className="text-sm text-gray-500 dark:text-gray-400">
-              Belum ada risiko yang dinilai. Analisis risiko terlebih dahulu, lalu buat rencana mitigasinya.
+              Tidak ada risiko dengan status "Mitigate" saat ini.
             </div>
           )}
         </div>

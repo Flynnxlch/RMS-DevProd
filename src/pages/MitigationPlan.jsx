@@ -6,12 +6,14 @@ import ContentHeader from '../components/ui/ContentHeader';
 import NotificationPopup from '../components/ui/NotificationPopup';
 import { Card } from '../components/widgets';
 import { API_ENDPOINTS, apiRequest } from '../config/api';
+import { useAuth } from '../context/AuthContext';
 import { useRisks } from '../context/RiskContext';
 import { getRiskStatus } from '../utils/riskStatus';
 
 export default function MitigationPlan() {
   const { riskId } = useParams();
   const navigate = useNavigate();
+  const { user } = useAuth();
   const { risks, updateRisk, refreshRisks } = useRisks();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [notification, setNotification] = useState({ isOpen: false, type: 'error', title: '', message: '', autoClose: false, autoCloseDelay: 3000 });
@@ -100,6 +102,38 @@ export default function MitigationPlan() {
       setIsSubmitting(false);
     }
   };
+
+  // RISK_ASSESSMENT has no access to create or edit mitigation plans
+  if (user?.userRole === 'RISK_ASSESSMENT') {
+    return (
+      <>
+        <ContentHeader
+          title="Rencana Mitigasi"
+          breadcrumbs={[
+            { label: 'Beranda', path: '/' },
+            { label: 'Rencana Mitigasi', path: '/mitigations' },
+            { label: 'Akses Ditolak' },
+          ]}
+        />
+        <Card>
+          <div className="text-center py-10">
+            <i className="bi bi-shield-x text-4xl text-red-400 mb-3 block" />
+            <p className="text-sm font-semibold text-gray-800 dark:text-white mb-1">Akses Ditolak</p>
+            <p className="text-sm text-gray-500 dark:text-gray-400">
+              Role Risk Assessment tidak memiliki akses ke Rencana Mitigasi.
+            </p>
+            <button
+              type="button"
+              onClick={() => navigate('/')}
+              className="mt-4 inline-flex items-center gap-2 px-4 py-2 text-sm font-semibold text-white bg-[#0c9361] rounded-lg hover:bg-[#0a7a4f] transition-colors"
+            >
+              Kembali ke Dashboard
+            </button>
+          </div>
+        </Card>
+      </>
+    );
+  }
 
   if (!risk) {
     return (

@@ -48,6 +48,8 @@ export default function RiskAnalysisForm({
   risk,
   onSubmit,
   onCancel,
+  wizardMode = false, // When true: hide Section 3, show "← Back" / "Save Risk" buttons
+  isSubmitting = false,
 }) {
   // Bagian 1: Kontrol yang Ada
   const [existingControl, setExistingControl] = useState(risk?.existingControl || '');
@@ -123,27 +125,28 @@ export default function RiskAnalysisForm({
       kriValueSafe,
       kriValueCaution,
       kriValueDanger,
-      // Bagian 3: Inherent Risk
-      impactDescription,
-      impactLevel: Number(impactLevel),
-      impact: Number(impactLevel), // Keep for backward compatibility
-      possibilityType: Number(possibilityType),
-      possibility: Number(possibilityType), // Keep for backward compatibility
-      likelihood: Number(possibilityType), // Keep for backward compatibility
-      possibilityDescription,
-      // Bagian 3: Residual Risk
-      residualImpactDescription,
-      residualImpactLevel: Number(residualImpactLevel) || 0,
-      residualPossibilityType: Number(residualPossibilityType) || 0,
-      residualPossibilityDescription,
-      // Scores
-      score: inherentScore > 0 ? inherentScore : 0,
-      inherentScore: inherentScore > 0 ? inherentScore : 0,
-      level: inherentLevel?.label || null,
-      inherentLevel: inherentLevel?.label || null,
-      residualScore: residualScore > 0 ? residualScore : null,
-      residualLevel: residualLevel?.label || null,
     };
+
+    // Bagian 3 is excluded in wizard mode (moved to Phase 5 "Pengukuran Risiko")
+    if (!wizardMode) {
+      payload.impactDescription = impactDescription;
+      payload.impactLevel = Number(impactLevel);
+      payload.impact = Number(impactLevel);
+      payload.possibilityType = Number(possibilityType);
+      payload.possibility = Number(possibilityType);
+      payload.likelihood = Number(possibilityType);
+      payload.possibilityDescription = possibilityDescription;
+      payload.residualImpactDescription = residualImpactDescription;
+      payload.residualImpactLevel = Number(residualImpactLevel) || 0;
+      payload.residualPossibilityType = Number(residualPossibilityType) || 0;
+      payload.residualPossibilityDescription = residualPossibilityDescription;
+      payload.score = inherentScore > 0 ? inherentScore : 0;
+      payload.inherentScore = inherentScore > 0 ? inherentScore : 0;
+      payload.level = inherentLevel?.label || null;
+      payload.inherentLevel = inherentLevel?.label || null;
+      payload.residualScore = residualScore > 0 ? residualScore : null;
+      payload.residualLevel = residualLevel?.label || null;
+    }
 
     onSubmit?.(payload);
   };
@@ -335,8 +338,8 @@ export default function RiskAnalysisForm({
         </div>
       </div>
 
-      {/* Bagian 3: Pengukuran Resiko */}
-      <div className="border border-gray-200 dark:border-gray-700 rounded-lg p-4 bg-gray-50 dark:bg-gray-800/40">
+      {/* Bagian 3: Pengukuran Resiko — hidden in wizard mode (moved to Phase 5) */}
+      {!wizardMode && <div className="border border-gray-200 dark:border-gray-700 rounded-lg p-4 bg-gray-50 dark:bg-gray-800/40">
         <h3 className="text-sm font-semibold text-gray-900 dark:text-white mb-4">Bagian 3: Pengukuran Resiko</h3>
         
         <div className="space-y-6">
@@ -508,7 +511,7 @@ export default function RiskAnalysisForm({
             </div>
           </div>
         </div>
-      </div>
+      </div>}
 
       {/* Submit Buttons */}
       <div className="flex flex-col-reverse sm:flex-row sm:items-center sm:justify-end gap-3 pt-4 border-t border-gray-200 dark:border-gray-700">
@@ -517,13 +520,20 @@ export default function RiskAnalysisForm({
           onClick={onCancel}
           className="w-full sm:w-auto px-4 py-2 text-sm font-semibold text-gray-700 dark:text-gray-300 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-white/5 transition-colors"
         >
-          Batal
+          {wizardMode ? (
+            <><i className="bi bi-arrow-left mr-2" />Back</>
+          ) : (
+            'Batal'
+          )}
         </button>
         <button
           type="submit"
-          className="w-full sm:w-auto px-4 py-2 text-sm font-semibold text-white bg-[#0d6efd] rounded-lg hover:bg-blue-600 transition-colors"
+          disabled={wizardMode && isSubmitting}
+          className="w-full sm:w-auto px-4 py-2 text-sm font-semibold text-white bg-[#0d6efd] rounded-lg hover:bg-blue-600 disabled:opacity-60 disabled:cursor-not-allowed transition-colors"
         >
-          Simpan Evaluasi
+          {wizardMode
+            ? isSubmitting ? 'Menyimpan...' : 'Save Risk'
+            : 'Simpan Evaluasi'}
         </button>
       </div>
     </form>

@@ -18,9 +18,18 @@ export function getRiskStatus(risk) {
   const hasMitigationPlan = (risk.mitigationPlan || risk.mitigation || '').trim().length > 0;
   const evaluationStatus = risk.evaluationStatus;
 
-  // Risiko Baru: score is 0/null (not analyzed)
+  // Risiko Baru / approval sub-states: score is 0/null (not yet measured)
   if (score <= 0) {
+    if (risk.approvalStatus === 'rejected') return 'identifikasi-ulang';
+    if (risk.approvalStatus === 'approved') return 'perlu-pengukuran';
     return 'risiko-baru';
+  }
+
+  // Phase 5 measurement path: if risk has a measurement record, skip to monitor/mitigate directly
+  if (risk.hasMeasurement || risk.measurement) {
+    // Low (1–11) → Monitor, Moderate to High / High (12+) → Mitigate
+    if (score <= 11) return 'monitor';
+    return 'mitigate';
   }
 
   // If has evaluation status, determine Monitor / Mitigate / Need Improvement

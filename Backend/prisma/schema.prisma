@@ -24,12 +24,14 @@ model User {
   memberSince   String?   @map("member_since") @db.VarChar(50)
   createdAt     DateTime  @default(now()) @map("created_at")
   updatedAt     DateTime  @updatedAt @map("updated_at")
-  
-  risks                 Risk[]
-  riskEvaluations       RiskEvaluation[]
-  processedRegRequests  UserRegistrationRequest[] @relation("ProcessedRegRequests")
+
+  risks                  Risk[]
+  riskEvaluations        RiskEvaluation[]
+  riskApprovals          RiskApproval[]
+  riskMeasurements       RiskMeasurement[]
+  processedRegRequests   UserRegistrationRequest[] @relation("ProcessedRegRequests")
   processedOtherRequests OtherRequest[] @relation("ProcessedOtherRequests")
-  otherRequests         OtherRequest[] @relation("UserOtherRequests")
+  otherRequests          OtherRequest[] @relation("UserOtherRequests")
 
   @@map("users")
 }
@@ -69,10 +71,66 @@ model Risk {
   analysis        RiskAnalysis?
   mitigation      RiskMitigation?
   evaluations     RiskEvaluation[]
+  approvals       RiskApproval[]
+  measurement     RiskMeasurement?
 
   @@index([userId])
   @@index([regionCode])
   @@map("risks")
+}
+
+// ============================================
+// RISK APPROVAL (Persetujuan Risiko Baru)
+// ============================================
+
+model RiskApproval {
+  id        String   @id @default(cuid())
+  riskId    String   @map("risk_id") @db.VarChar(50)
+  role      String   @db.VarChar(50)  // "Risk Champion" | "Risk Assessment"
+  action    String   @db.VarChar(20)  // "approved" | "rejected"
+  userId    Int      @map("user_id")
+  note      String?  @db.Text
+  createdAt DateTime @default(now()) @map("created_at")
+
+  risk  Risk  @relation(fields: [riskId], references: [id], onDelete: Cascade)
+  user  User  @relation(fields: [userId], references: [id])
+
+  @@index([riskId])
+  @@map("risk_approvals")
+}
+
+// ============================================
+// RISK MEASUREMENT (Pengukuran Risiko)
+// ============================================
+
+model RiskMeasurement {
+  id              String   @id @default(cuid())
+  riskId          String   @unique @map("risk_id") @db.VarChar(50)
+  treatmentOption String   @map("treatment_option") @db.VarChar(100)
+
+  // Inherent Risk (Bagian 3: Pengukuran Risiko)
+  impactDescription      String? @db.Text @map("impact_description")
+  impactLevel            Int?    @map("impact_level")
+  possibilityType        Int?    @map("possibility_type")
+  possibilityDescription String? @db.Text @map("possibility_description")
+  inherentScore          Int?    @map("inherent_score")
+  inherentLevel          String? @map("inherent_level") @db.VarChar(50)
+
+  // Residual Risk
+  residualImpactDescription      String? @db.Text @map("residual_impact_description")
+  residualImpactLevel            Int?    @map("residual_impact_level")
+  residualPossibilityType        Int?    @map("residual_possibility_type")
+  residualPossibilityDescription String? @db.Text @map("residual_possibility_description")
+  residualScore                  Int?    @map("residual_score")
+  residualLevel                  String? @map("residual_level") @db.VarChar(50)
+
+  measuredBy Int      @map("measured_by")
+  measuredAt DateTime @default(now()) @map("measured_at")
+
+  risk Risk @relation(fields: [riskId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [measuredBy], references: [id])
+
+  @@map("risk_measurements")
 }
 
 // ============================================
@@ -131,21 +189,21 @@ enum Cabang {
 model RiskAnalysis {
   id                        Int      @id @default(autoincrement())
   riskId                    String   @unique @map("risk_id") @db.VarChar(50)
-  
+
   // Bagian 1: Kontrol yang Ada
   existingControl           String?   @db.Text @map("existing_control")
   controlType               String?   @map("control_type") @db.VarChar(255)
   controlLevel              String?   @map("control_level") @db.VarChar(255)
   controlEffectivenessAssessment String? @map("control_effectiveness_assessment") @db.VarChar(255)
   estimatedExposureDate     DateTime? @map("estimated_exposure_date")
-  
+
   // Bagian 2: Key Risk Indicator
   keyRiskIndicator          String?   @map("key_risk_indicator") @db.Text
   kriUnit                   String?   @map("kri_unit") @db.VarChar(255)
   kriValueSafe              String?   @map("kri_value_safe") @db.VarChar(255)
   kriValueCaution           String?   @map("kri_value_caution") @db.VarChar(255)
   kriValueDanger            String?   @map("kri_value_danger") @db.VarChar(255)
-  
+
   // Bagian 3: Inherent Risk
   impactDescription         String?   @db.Text @map("impact_description")
   impactLevel               Int?     @map("impact_level")
@@ -153,7 +211,7 @@ model RiskAnalysis {
   possibilityDescription    String?   @db.Text @map("possibility_description")
   inherentScore             Int?     @map("inherent_score")
   inherentLevel             String?   @map("inherent_level") @db.VarChar(50)
-  
+
   // Bagian 3: Residual Risk
   residualImpactDescription String?   @db.Text @map("residual_impact_description")
   residualImpactLevel       Int?     @map("residual_impact_level")
@@ -161,7 +219,7 @@ model RiskAnalysis {
   residualPossibilityDescription String? @db.Text @map("residual_possibility_description")
   residualScore             Int?     @map("residual_score")
   residualLevel             String?   @map("residual_level") @db.VarChar(50)
-  
+
   analyzedAt                DateTime? @map("analyzed_at")
   createdAt                 DateTime  @default(now()) @map("created_at")
   updatedAt                 DateTime  @updatedAt @map("updated_at")
@@ -178,7 +236,7 @@ model RiskAnalysis {
 model RiskMitigation {
   id                          Int      @id @default(autoincrement())
   riskId                      String   @unique @map("risk_id") @db.VarChar(50)
-  
+
   // Mitigation Plan
   handlingType                String?   @map("handling_type") @db.VarChar(255)
   mitigationPlan              String   @db.Text @map("mitigation_plan")
@@ -188,7 +246,7 @@ model RiskMitigation {
   progressMitigation          String?   @map("progress_mitigation") @db.Text
   realizationTarget           String?   @map("realization_target") @db.Text
   targetKpi                   String?   @map("target_kpi") @db.Text
-  
+
   inherentScore               Int?     @map("inherent_score")
 
   // Current Risk (after mitigation) - optional override for display
@@ -198,7 +256,7 @@ model RiskMitigation {
   currentProbabilityType      Int?     @map("current_probability_type")
   currentScore                Int?     @map("current_score")
   currentLevel                String?   @map("current_level") @db.VarChar(50)
-  
+
   plannedAt                   DateTime? @map("planned_at")
   createdAt                   DateTime  @default(now()) @map("created_at")
   updatedAt                   DateTime  @updatedAt @map("updated_at")
@@ -216,7 +274,7 @@ model RiskEvaluation {
   id                      Int              @id @default(autoincrement())
   riskId                  String           @map("risk_id") @db.VarChar(50)
   userId                  Int              @map("user_id")
-  
+
   // Evaluation Metadata
   evaluationStatus        EvaluationStatus @map("evaluation_status")
   evaluationNotes         String?          @db.Text @map("evaluation_notes")
@@ -224,11 +282,11 @@ model RiskEvaluation {
   evaluator               String?          @db.VarChar(255)
   evaluatorNote           String?          @db.Text @map("evaluator_note")
   lastEvaluatedAt         DateTime?        @map("last_evaluated_at")
-  
+
   // Current Risk Assessment (Setelah Mitigasi) - hanya deskripsi, tidak menyimpan level/type/score
   currentImpactDescription String?         @db.Text @map("current_impact_description")
   currentProbabilityDescription String?    @db.Text @map("current_probability_description")
-  
+
   createdAt               DateTime         @default(now()) @map("created_at")
   updatedAt               DateTime         @updatedAt @map("updated_at")
 

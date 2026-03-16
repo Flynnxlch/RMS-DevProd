@@ -4,6 +4,7 @@ import { RiskForm } from '../components/form';
 import EvaluationForm from '../components/form/EvaluationForm';
 import MitigationPlanForm from '../components/form/MitigationPlanForm';
 import RiskAnalysisForm from '../components/form/RiskAnalysisForm';
+import ApprovalPanel from '../components/risk/ApprovalPanel';
 import RiskLevelBadge from '../components/risk/RiskLevelBadge';
 import ContentHeader from '../components/ui/ContentHeader';
 import NotificationPopup from '../components/ui/NotificationPopup';
@@ -775,6 +776,7 @@ export default function RiskDetail() {
             </button>
           </div>
         </div>
+        <ApprovalPanel risk={risk} onActionComplete={refreshRisks} />
       </Card>
 
       {/* Tab Navigation (Browser-style) */}

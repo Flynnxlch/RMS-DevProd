@@ -1,6 +1,7 @@
 import { prisma } from '../lib/prisma.js';
 import { clearCacheByPattern, deleteCache, getCache, setCache } from '../utils/cache.js';
 import { generateRiskId, getRiskLevel } from '../utils/risk.js';
+import { deriveApprovalStatus } from './approvalController.js';
 
 /**
  * Risk controller - handles risk-related API endpoints
@@ -105,21 +106,30 @@ export const riskController = {
           },
           analysis: true,
           mitigation: true,
+          measurement: true,
           evaluations: {
             orderBy: { lastEvaluatedAt: 'desc' },
             take: 1,
+          },
+          approvals: {
+            include: { user: { select: { id: true, name: true } } },
+            orderBy: { createdAt: 'asc' },
           },
         },
       });
 
       // Transform and calculate scores
       const risksWithScores = allRisks.map(risk => {
-        // Calculate score and level - prioritize currentScore from mitigation, then inherentScore
+        // Calculate score and level
+        // Priority: mitigation.currentScore > measurement.inherentScore > analysis.inherentScore > mitigation.residualScoreFinal
         let score = 0;
         let level = null;
         if (risk.mitigation?.currentScore) {
           score = risk.mitigation.currentScore;
           level = risk.mitigation.currentLevel || getRiskLevel(score)?.label;
+        } else if (risk.measurement?.inherentScore) {
+          score = risk.measurement.inherentScore;
+          level = risk.measurement.inherentLevel || getRiskLevel(score)?.label;
         } else if (risk.analysis?.inherentScore) {
           score = risk.analysis.inherentScore;
           level = risk.analysis.inherentLevel;
@@ -205,6 +215,18 @@ export const riskController = {
         const score = risk.calculatedScore || 0;
         const level = risk.calculatedLevel || null;
 
+        // Approval data
+        const approvalStatus = deriveApprovalStatus(risk.approvals);
+        const formattedApprovals = (risk.approvals || []).map(a => ({
+          id: a.id,
+          role: a.role,
+          action: a.action,
+          note: a.note || null,
+          userId: a.userId,
+          userName: a.user?.name || null,
+          createdAt: a.createdAt.toISOString(),
+        }));
+
         return {
           id: risk.id,
           userId: risk.userId,
@@ -221,10 +243,34 @@ export const riskController = {
           regionCode: risk.regionCode,
           evaluationRequested: risk.evaluationRequested || false,
           evaluationRequestedAt: risk.evaluationRequestedAt?.toISOString(),
+          approvalStatus,
+          approvals: formattedApprovals,
+          hasMeasurement: !!risk.measurement,
           score,
           level,
           createdAt: risk.createdAt.toISOString(),
           updatedAt: risk.updatedAt.toISOString(),
+          // Include measurement data
+          ...(risk.measurement && {
+            measurement: {
+              id: risk.measurement.id,
+              treatmentOption: risk.measurement.treatmentOption,
+              impactDescription: risk.measurement.impactDescription,
+              impactLevel: risk.measurement.impactLevel,
+              possibilityType: risk.measurement.possibilityType,
+              possibilityDescription: risk.measurement.possibilityDescription,
+              inherentScore: risk.measurement.inherentScore,
+              inherentLevel: risk.measurement.inherentLevel,
+              residualImpactDescription: risk.measurement.residualImpactDescription,
+              residualImpactLevel: risk.measurement.residualImpactLevel,
+              residualPossibilityType: risk.measurement.residualPossibilityType,
+              residualPossibilityDescription: risk.measurement.residualPossibilityDescription,
+              residualScore: risk.measurement.residualScore,
+              residualLevel: risk.measurement.residualLevel,
+              measuredBy: risk.measurement.measuredBy,
+              measuredAt: risk.measurement.measuredAt.toISOString(),
+            },
+          }),
           // Include analysis data
           ...(risk.analysis && {
             existingControl: risk.analysis.existingControl,
@@ -366,8 +412,13 @@ export const riskController = {
           },
           analysis: true,
           mitigation: true,
+          measurement: true,
           evaluations: {
             orderBy: { lastEvaluatedAt: 'desc' },
+          },
+          approvals: {
+            include: { user: { select: { id: true, name: true } } },
+            orderBy: { createdAt: 'asc' },
           },
         },
       });
@@ -404,16 +455,35 @@ export const riskController = {
         // If you want to also check userId for non-KPS users, you can add: && risk.userId !== user.id
       }
 
-      // Calculate score and level from analysis if available
+      // Calculate score and level
+      // Priority: mitigation.currentScore > measurement.inherentScore > analysis.inherentScore > mitigation.residualScoreFinal
       let score = 0;
       let level = null;
-      if (risk.analysis?.inherentScore) {
+      if (risk.mitigation?.currentScore) {
+        score = risk.mitigation.currentScore;
+        level = risk.mitigation.currentLevel || getRiskLevel(score)?.label;
+      } else if (risk.measurement?.inherentScore) {
+        score = risk.measurement.inherentScore;
+        level = risk.measurement.inherentLevel || getRiskLevel(score)?.label;
+      } else if (risk.analysis?.inherentScore) {
         score = risk.analysis.inherentScore;
         level = risk.analysis.inherentLevel;
       } else if (risk.mitigation?.residualScoreFinal) {
         score = risk.mitigation.residualScoreFinal;
-        level = getRiskLevel(score).label;
+        level = getRiskLevel(score)?.label;
       }
+
+      // Approval data
+      const approvalStatus = deriveApprovalStatus(risk.approvals);
+      const formattedApprovals = (risk.approvals || []).map(a => ({
+        id: a.id,
+        role: a.role,
+        action: a.action,
+        note: a.note || null,
+        userId: a.userId,
+        userName: a.user?.name || null,
+        createdAt: a.createdAt.toISOString(),
+      }));
 
       // Format response (similar to getAll)
       const formattedRisk = {
@@ -432,10 +502,34 @@ export const riskController = {
         regionCode: risk.regionCode,
         evaluationRequested: risk.evaluationRequested || false,
         evaluationRequestedAt: risk.evaluationRequestedAt?.toISOString(),
+        approvalStatus,
+        approvals: formattedApprovals,
+        hasMeasurement: !!risk.measurement,
         score,
         level,
         createdAt: risk.createdAt.toISOString(),
         updatedAt: risk.updatedAt.toISOString(),
+        // Include measurement data
+        ...(risk.measurement && {
+          measurement: {
+            id: risk.measurement.id,
+            treatmentOption: risk.measurement.treatmentOption,
+            impactDescription: risk.measurement.impactDescription,
+            impactLevel: risk.measurement.impactLevel,
+            possibilityType: risk.measurement.possibilityType,
+            possibilityDescription: risk.measurement.possibilityDescription,
+            inherentScore: risk.measurement.inherentScore,
+            inherentLevel: risk.measurement.inherentLevel,
+            residualImpactDescription: risk.measurement.residualImpactDescription,
+            residualImpactLevel: risk.measurement.residualImpactLevel,
+            residualPossibilityType: risk.measurement.residualPossibilityType,
+            residualPossibilityDescription: risk.measurement.residualPossibilityDescription,
+            residualScore: risk.measurement.residualScore,
+            residualLevel: risk.measurement.residualLevel,
+            measuredBy: risk.measurement.measuredBy,
+            measuredAt: risk.measurement.measuredAt.toISOString(),
+          },
+        }),
         ...(risk.analysis && {
           existingControl: risk.analysis.existingControl,
           controlType: risk.analysis.controlType,
@@ -568,23 +662,55 @@ export const riskController = {
       // Generate risk ID
       const riskId = generateRiskId();
 
-      // Create risk
-      const risk = await prisma.risk.create({
-        data: {
-          id: riskId,
-          userId: user.id,
-          riskEvent: riskEvent.trim(),
-          title: riskEvent.trim(),
-          organization: organization || null,
-          division: division || null,
-          target: target || null,
-          riskEventDescription: riskEventDescription || null,
-          riskCause: riskCause || null,
-          riskImpactExplanation: riskImpactExplanation || null,
-          category: category || null,
-          riskCategoryType: riskCategoryType || null,
-          regionCode: finalRegionCode,
-        },
+      // Check if analysis data (Bagian 1 / Bagian 2) was submitted alongside the risk
+      const analysisFields = [
+        'existingControl', 'controlType', 'controlLevel',
+        'controlEffectivenessAssessment', 'estimatedExposureDate',
+        'keyRiskIndicator', 'kriUnit', 'kriValueSafe', 'kriValueCaution', 'kriValueDanger',
+      ];
+      const hasAnalysisData = analysisFields.some(
+        (field) => body[field] !== undefined && body[field] !== null && body[field] !== ''
+      );
+
+      // Create risk (and optionally its analysis) in a single transaction
+      const risk = await prisma.$transaction(async (tx) => {
+        const created = await tx.risk.create({
+          data: {
+            id: riskId,
+            userId: user.id,
+            riskEvent: riskEvent.trim(),
+            title: riskEvent.trim(),
+            organization: organization || null,
+            division: division || null,
+            target: target || null,
+            riskEventDescription: riskEventDescription || null,
+            riskCause: riskCause || null,
+            riskImpactExplanation: riskImpactExplanation || null,
+            category: category || null,
+            riskCategoryType: riskCategoryType || null,
+            regionCode: finalRegionCode,
+          },
+        });
+
+        if (hasAnalysisData) {
+          await tx.riskAnalysis.create({
+            data: {
+              riskId: created.id,
+              existingControl: body.existingControl || null,
+              controlType: body.controlType || null,
+              controlLevel: body.controlLevel || null,
+              controlEffectivenessAssessment: body.controlEffectivenessAssessment || null,
+              estimatedExposureDate: body.estimatedExposureDate ? new Date(body.estimatedExposureDate) : null,
+              keyRiskIndicator: body.keyRiskIndicator || null,
+              kriUnit: body.kriUnit || null,
+              kriValueSafe: body.kriValueSafe || null,
+              kriValueCaution: body.kriValueCaution || null,
+              kriValueDanger: body.kriValueDanger || null,
+            },
+          });
+        }
+
+        return created;
       });
 
       // Clear cache when risk is created

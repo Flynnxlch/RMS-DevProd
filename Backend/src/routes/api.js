@@ -1,4 +1,6 @@
 import { authController } from '../controllers/auth.js';
+import { approvalController } from '../controllers/approvalController.js';
+import { measurementController } from '../controllers/measurementController.js';
 import { regulationController } from '../controllers/regulationController.js';
 import { requestController } from '../controllers/requestController.js';
 import { riskController } from '../controllers/riskController.js';
@@ -168,14 +170,36 @@ export async function apiRoutes(request, path) {
   // Risk evaluation endpoints
   if (matchRoute('/risks/:riskId/evaluations', path)) {
     const { riskId } = extractPathParams('/risks/:riskId/evaluations', path);
-    
+
     if (method === 'POST' || method === 'PUT') {
       const authError = await authMiddleware(request);
       if (authError) return authError;
       return riskController.createOrUpdateEvaluation(request, riskId);
     }
   }
-  
+
+  // Risk measurement endpoints (Risk Assessment only)
+  if (matchRoute('/risks/:riskId/measurement', path)) {
+    const { riskId } = extractPathParams('/risks/:riskId/measurement', path);
+
+    if (method === 'POST' || method === 'PUT') {
+      const authError = await authMiddleware(request);
+      if (authError) return authError;
+      return measurementController.submitMeasurement(request, riskId);
+    }
+  }
+
+  // Risk approval endpoints (Risk Champion / Risk Assessment only)
+  if (matchRoute('/risks/:riskId/approval', path)) {
+    const { riskId } = extractPathParams('/risks/:riskId/approval', path);
+
+    if (method === 'POST') {
+      const authError = await authMiddleware(request);
+      if (authError) return authError;
+      return approvalController.submitApproval(request, riskId);
+    }
+  }
+
   // User registration request endpoints
   if (path === '/user-requests/registration') {
     if (method === 'GET') {

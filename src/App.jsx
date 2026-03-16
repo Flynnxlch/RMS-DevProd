@@ -15,6 +15,7 @@ import MonthlyEvaluations from './pages/MonthlyEvaluations';
 import MonthlyEvaluationForm from './pages/MonthlyEvaluationForm';
 import NewRiskEntry from './pages/NewRiskEntry';
 import Reports from './pages/Reports';
+import RiskMeasurements from './pages/RiskMeasurements';
 import RiskDetail from './pages/RiskDetail';
 import RiskRegister from './pages/RiskRegister';
 import Settings from './pages/Settings';
@@ -30,6 +31,32 @@ function PlaceholderPage({ title }) {
       </div>
     </div>
   );
+}
+
+// Role-based protected route — redirects to dashboard if role not allowed
+function RoleProtectedRoute({ children, allowedRoles }) {
+  const { isAuthenticated, isLoading, user } = useAuth();
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-(--color-body-bg) dark:bg-(--color-body-bg-dark)">
+        <div className="text-center">
+          <i className="bi bi-arrow-repeat animate-spin text-4xl text-[#0c9361] mb-4"></i>
+          <p className="text-gray-600 dark:text-gray-400">Memeriksa kredensial...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (!isAuthenticated) {
+    return <Navigate to="/login" replace />;
+  }
+
+  if (allowedRoles && user && !allowedRoles.includes(user.userRole)) {
+    return <Navigate to="/" replace />;
+  }
+
+  return children;
 }
 
 // Protected Route Component
@@ -126,11 +153,11 @@ function AppRoutes() {
       <Route
         path="/risks/new"
         element={
-          <ProtectedRoute>
+          <RoleProtectedRoute allowedRoles={['RISK_OFFICER']}>
             <AppWrapper>
               <NewRiskEntry />
             </AppWrapper>
-          </ProtectedRoute>
+          </RoleProtectedRoute>
         }
       />
 
@@ -148,22 +175,33 @@ function AppRoutes() {
       <Route
         path="/risks/:riskId/mitigation-plan"
         element={
-          <ProtectedRoute>
+          <RoleProtectedRoute allowedRoles={['RISK_OFFICER', 'RISK_CHAMPION']}>
             <AppWrapper>
               <MitigationPlan />
             </AppWrapper>
-          </ProtectedRoute>
+          </RoleProtectedRoute>
+        }
+      />
+
+      <Route
+        path="/measurements"
+        element={
+          <RoleProtectedRoute allowedRoles={['RISK_ASSESSMENT']}>
+            <AppWrapper>
+              <RiskMeasurements />
+            </AppWrapper>
+          </RoleProtectedRoute>
         }
       />
 
       <Route
         path="/mitigations"
         element={
-          <ProtectedRoute>
+          <RoleProtectedRoute allowedRoles={['RISK_OFFICER', 'RISK_CHAMPION']}>
             <AppWrapper>
               <Mitigations />
             </AppWrapper>
-          </ProtectedRoute>
+          </RoleProtectedRoute>
         }
       />
 

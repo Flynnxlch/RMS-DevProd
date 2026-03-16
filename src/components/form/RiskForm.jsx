@@ -60,6 +60,7 @@ export default function RiskForm({
   submitLabel = 'Tambah Risiko',
   compact = false,
   simplified = false, // For New Risk Entry - only show basic fields
+  wizardMode = false, // For 2-step wizard: changes button to "Continue →"
   initial = {},
 }) {
   const { user } = useAuth();
@@ -289,13 +290,22 @@ export default function RiskForm({
           placeholder="Jelaskan dampak potensial secara detail..."
         />
       </div>
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 pt-1">
+      <div className={`flex flex-col sm:flex-row sm:items-center gap-3 pt-1 ${wizardMode ? 'sm:justify-end' : 'sm:justify-between'}`}>
         <button
           type="submit"
           className="inline-flex items-center justify-center rounded-lg bg-[#0d6efd] px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-blue-600 transition-colors"
         >
-          <i className="bi bi-plus-circle mr-2" />
-          {submitLabel}
+          {wizardMode ? (
+            <>
+              {submitLabel}
+              <i className="bi bi-arrow-right ml-2" />
+            </>
+          ) : (
+            <>
+              <i className="bi bi-plus-circle mr-2" />
+              {submitLabel}
+            </>
+          )}
         </button>
       </div>
     </form>

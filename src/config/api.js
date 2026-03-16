@@ -45,6 +45,8 @@ export const API_ENDPOINTS = {
     analysis: (id) => `${API_BASE_URL}/api/risks/${id}/analysis`,
     mitigation: (id) => `${API_BASE_URL}/api/risks/${id}/mitigation`,
     evaluation: (id) => `${API_BASE_URL}/api/risks/${id}/evaluations`,
+    approval: (id) => `${API_BASE_URL}/api/risks/${id}/approval`,
+    measurement: (id) => `${API_BASE_URL}/api/risks/${id}/measurement`,
   },
   requests: {
     registration: {
