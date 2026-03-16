@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { OtherRequest, UpdatePeraturanTerbaru, UserList, UserRequest } from '../components/adm';
+import CategoryDistributionChart from '../components/charts/CategoryDistributionChart';
 import DonutChart from '../components/charts/DonutChart';
 import PieChart from '../components/charts/PieChart';
 import RiskStatusTrendChart from '../components/charts/RiskStatusTrendChart';
@@ -8,6 +9,7 @@ import RiskTrendChart from '../components/charts/RiskTrendChart';
 import RiskCardExpandable from '../components/risk/RiskCardExpandable';
 import RiskMatrix from '../components/risk/RiskMatrix';
 import ContentHeader from '../components/ui/ContentHeader';
+import StatusBar from '../components/ui/StatusBar';
 import { Card, SmallBox } from '../components/widgets';
 import { useAuth } from '../context/AuthContext';
 import { useRisks } from '../context/RiskContext';
@@ -30,50 +32,85 @@ const STATUS_COLORS = {
   'need-improvement':  '#e83e8c',
 };
 
-const REGION_COLORS = ['#0d6efd', '#20c997', '#ffc107', '#d63384', '#6f42c1', '#adb5bd', '#dc3545', '#0dcaf0'];
-
 export default function Dashboard() {
   const { risks, isLoading: risksLoading, error: risksError } = useRisks();
   const { user } = useAuth();
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const mode = searchParams.get('mode') || 'risk';
-  const [chartPeriod, setChartPeriod] = useState('6months'); // '6months' or 'currentMonth'
-  
+
+  // StatusBar filter state
+  const [periodMonths, setPeriodMonths] = useState(1);
+  const [startMonth, setStartMonth] = useState(() => {
+    const now = new Date();
+    return { year: now.getFullYear(), month: now.getMonth() };
+  });
+  const [branchFilter, setBranchFilter] = useState('all');
+
   // Check if user is Risk Assessment (only Risk Assessment can access User mode)
   const isAdminPusat = user?.userRole === 'RISK_ASSESSMENT';
 
   // All hooks must be called before any conditional returns
-  const summary = useMemo(() => getRiskSummary(risks), [risks]);
-  
+
+  // Available branches derived from all risks (unfiltered)
+  const branchOptions = useMemo(() => {
+    const labels = new Set();
+    for (const r of risks) {
+      if (r.regionCode) {
+        const label = getCabangLabel(r.regionCode) || r.regionCode;
+        labels.add(label);
+      }
+    }
+    return Array.from(labels).sort();
+  }, [risks]);
+
+  // Risks filtered by the StatusBar period + branch selections
+  const filteredRisks = useMemo(() => {
+    const start = new Date(startMonth.year, startMonth.month, 1);
+    start.setHours(0, 0, 0, 0);
+    // new Date(y, m + n, 0) = last day of month (m + n - 1)
+    const end = new Date(startMonth.year, startMonth.month + periodMonths, 0);
+    end.setHours(23, 59, 59, 999);
+
+    return risks.filter((r) => {
+      const created = new Date(r.createdAt);
+      if (isNaN(created.getTime())) return true;
+      if (created < start || created > end) return false;
+      if (isAdminPusat && branchFilter !== 'all') {
+        const label = getCabangLabel(r.regionCode) || r.regionCode;
+        if (label !== branchFilter) return false;
+      }
+      return true;
+    });
+  }, [risks, periodMonths, startMonth, isAdminPusat, branchFilter]);
+
+  const summary = useMemo(() => getRiskSummary(filteredRisks), [filteredRisks]);
+
   // Get top risks: filter out Open Risk (score = 0 or null), then sort by score descending, take top 4
   const topRisks = useMemo(() => {
-    // Filter out Open Risk (risks without score or score = 0)
-    const risksWithScore = risks.filter((r) => {
+    const risksWithScore = filteredRisks.filter((r) => {
       const score = r.score || r.inherentScore || r.currentScore || r.residualScore || r.residualScoreFinal || 0;
       return score > 0;
     });
-    
-    // Sort by score descending and take top 4
     return sortRisksByScoreDesc(risksWithScore).slice(0, 4);
-  }, [risks]);
+  }, [filteredRisks]);
 
   // Hitung risiko yang sudah mengajukan evaluasi keberhasilan
   const dueThisMonth = useMemo(() => {
-    return risks.filter((r) => r.evaluationRequested === true).length;
-  }, [risks]);
+    return filteredRisks.filter((r) => r.evaluationRequested === true).length;
+  }, [filteredRisks]);
 
   // Persentase risiko yang sudah memiliki mitigasi
   const mitigationCoverage = useMemo(() => {
-    if (!risks.length) return 0;
-    const withMitigation = risks.filter((r) => (r.mitigation || '').trim().length > 0).length;
-    return Math.round((withMitigation / risks.length) * 100);
-  }, [risks]);
+    if (!filteredRisks.length) return 0;
+    const withMitigation = filteredRisks.filter((r) => (r.mitigation || '').trim().length > 0).length;
+    return Math.round((withMitigation / filteredRisks.length) * 100);
+  }, [filteredRisks]);
 
   const statusSummary = useMemo(() => {
     const order = RISK_STATUS_ORDER;
     const counts = new Map(order.map((k) => [k, 0]));
-    for (const r of risks) {
+    for (const r of filteredRisks) {
       const s = getRiskStatus(r);
       counts.set(s, (counts.get(s) || 0) + 1);
     }
@@ -83,7 +120,7 @@ export default function Dashboard() {
       count: counts.get(key) || 0,
       color: STATUS_COLORS[key] || '#6c757d',
     }));
-  }, [risks]);
+  }, [filteredRisks]);
 
   const statusDonut = useMemo(() => {
     return {
@@ -93,70 +130,39 @@ export default function Dashboard() {
     };
   }, [statusSummary]);
 
-  // For Risk Champion: show category distribution instead of region distribution
-  const isAdminCabang = user?.userRole === 'RISK_CHAMPION';
-  
-  const regionSummary = useMemo(() => {
-    if (isAdminCabang) {
-      // Category distribution for ADMIN_CABANG
-      const counts = new Map();
-      for (const r of risks) {
-        const category = r.category || 'N/A';
-        const key = String(category).toUpperCase();
-        counts.set(key, (counts.get(key) || 0) + 1);
-      }
-      return Array.from(counts.entries())
-        .map(([key, count]) => ({ key, label: key, count }))
-        .sort((a, b) => b.count - a.count);
-    } else {
-      // Region distribution for other roles
-      const counts = new Map();
-      for (const r of risks) {
-        const regionCode = r.regionCode || 'N/A';
-        // Get the proper label (short code) instead of using regionCode directly
-        const label = getCabangLabel(regionCode) || regionCode;
-        const key = String(label).toUpperCase();
-        counts.set(key, (counts.get(key) || 0) + 1);
-      }
-      return Array.from(counts.entries())
-        .map(([key, count]) => ({ key, label: key, count }))
-        .sort((a, b) => b.count - a.count);
+  // Category distribution — all roles, reads from actual risk data
+  const categorySummary = useMemo(() => {
+    const counts = new Map();
+    for (const r of filteredRisks) {
+      const cat = r.category || 'N/A';
+      counts.set(cat, (counts.get(cat) || 0) + 1);
     }
-  }, [risks, isAdminCabang]);
-
-  const regionDonut = useMemo(() => {
-    return {
-      labels: regionSummary.map((x) => x.label),
-      data: regionSummary.map((x) => x.count),
-      colors: regionSummary.map((_, idx) => REGION_COLORS[idx % REGION_COLORS.length]),
-    };
-  }, [regionSummary]);
+    return Array.from(counts.entries())
+      .map(([label, count]) => ({ label, count }))
+      .sort((a, b) => b.count - a.count);
+  }, [filteredRisks]);
 
   const totalMitigationActual = useMemo(() => {
-    // Use mitigationActual (Realisasi Biaya Mitigasi Risiko)
-    return risks.reduce((sum, r) => {
+    return filteredRisks.reduce((sum, r) => {
       const actual = r.mitigationActual || 0;
       return sum + (typeof actual === 'number' ? actual : 0);
     }, 0);
-  }, [risks]);
+  }, [filteredRisks]);
 
   const totalMitigationBudget = useMemo(() => {
-    // Use mitigationBudget (Anggaran Biaya Mitigasi Risiko)
-    return risks.reduce((sum, r) => {
+    return filteredRisks.reduce((sum, r) => {
       const budget = r.mitigationBudget || 0;
       return sum + (typeof budget === 'number' ? budget : 0);
     }, 0);
-  }, [risks]);
+  }, [filteredRisks]);
 
   const mitigationActualCount = useMemo(() => {
-    // Count risks with mitigationActual (Realisasi Biaya Mitigasi Risiko) > 0
-    return risks.filter(r => r.mitigationActual && r.mitigationActual > 0).length;
-  }, [risks]);
+    return filteredRisks.filter(r => r.mitigationActual && r.mitigationActual > 0).length;
+  }, [filteredRisks]);
 
   const mitigationBudgetCount = useMemo(() => {
-    // Count risks with mitigationBudget (Anggaran Biaya Mitigasi Risiko) > 0
-    return risks.filter(r => r.mitigationBudget && r.mitigationBudget > 0).length;
-  }, [risks]);
+    return filteredRisks.filter(r => r.mitigationBudget && r.mitigationBudget > 0).length;
+  }, [filteredRisks]);
 
   // Calculate percentage for donut chart (Realisasi vs Anggaran)
   const mitigationPercentage = useMemo(() => {
@@ -274,30 +280,32 @@ export default function Dashboard() {
         <SmallBox title="Evaluasi Keberhasilan" value={String(dueThisMonth)} icon="bi-calendar-check" color="warning" link="/evaluations" linkText="Rencanakan tinjauan" />
       </div>
 
-      {/* Monthly Recap Report (Open vs Planned) + Goal Completion (Region/Cabang) */}
+      {/* Status Bar — period, start month, and branch filters */}
+      <StatusBar
+        periodMonths={periodMonths}
+        onPeriodChange={setPeriodMonths}
+        startMonth={startMonth}
+        onStartMonthChange={setStartMonth}
+        branchFilter={branchFilter}
+        onBranchChange={setBranchFilter}
+        branchOptions={branchOptions}
+        showBranchFilter={isAdminPusat}
+      />
+
+      {/* Monthly Recap Report (Open vs Planned) + Distribusi Risiko per Kategori */}
       <Card
         title="Rekapitulasi Risiko"
         collapsible
         headerExtra={
-          <div className="flex items-center gap-3">
-            <select
-              value={chartPeriod}
-              onChange={(e) => setChartPeriod(e.target.value)}
-              className="text-xs sm:text-sm rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 px-2 py-1.5 text-gray-700 dark:text-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400"
-            >
-              <option value="6months">6 Bulan Terakhir</option>
-              <option value="currentMonth">Bulan Ini</option>
-            </select>
-            <div className="hidden sm:flex items-center gap-3 text-sm text-gray-600 dark:text-gray-300">
-              <span className="inline-flex items-center gap-2">
-                <span className="h-2 w-2 rounded-full bg-[#0d6efd]" />
-                Analyzed
-              </span>
-              <span className="inline-flex items-center gap-2">
-                <span className="h-2 w-2 rounded-full bg-[#ffc107]" />
-                Planned
-              </span>
-            </div>
+          <div className="hidden sm:flex items-center gap-3 text-sm text-gray-600 dark:text-gray-300">
+            <span className="inline-flex items-center gap-2">
+              <span className="h-2 w-2 rounded-full bg-[#0d6efd]" />
+              Analyzed
+            </span>
+            <span className="inline-flex items-center gap-2">
+              <span className="h-2 w-2 rounded-full bg-[#ffc107]" />
+              Planned
+            </span>
           </div>
         }
       >
@@ -306,39 +314,25 @@ export default function Dashboard() {
             <p className="text-center text-sm font-semibold text-gray-700 dark:text-gray-200 mb-2">
               Risk Status
             </p>
-            <RiskStatusTrendChart risks={risks} height={220} period={chartPeriod} />
+            <RiskStatusTrendChart risks={filteredRisks} height={220} periodMonths={periodMonths} startMonth={startMonth} />
           </div>
           <div className="lg:col-span-4">
             <p className="text-center text-sm font-semibold text-gray-700 dark:text-gray-200">
-              {isAdminCabang ? 'Distribusi Kategori Risk' : 'Distribusi Risiko per Cabang'}
+              Distribusi Risiko per Kategori
             </p>
             <p className="text-center text-xs text-gray-500 dark:text-gray-400 mb-2">
               Total : {summary.total}
             </p>
-            {summary.total > 0 ? (
-              <DonutChart labels={regionDonut.labels} data={regionDonut.data} colors={regionDonut.colors} height={220} />
+            {summary.total > 0 && categorySummary.length > 0 ? (
+              <CategoryDistributionChart
+                data={categorySummary}
+                height={Math.max(220, categorySummary.length * 36)}
+              />
             ) : (
               <div className="text-sm text-gray-500 dark:text-gray-400">Belum ada risiko.</div>
             )}
           </div>
         </div>
-        {/* Region Legend - justified below charts */}
-        {summary.total > 0 && regionSummary.length > 0 && (
-          <div className="mt-4 pt-4 border-t border-gray-200 dark:border-(--color-card-border-dark)">
-            <div className="flex flex-wrap items-center justify-between gap-3 text-sm">
-              {regionSummary.map((x, idx) => (
-                <div key={x.key} className="flex items-center gap-2">
-                  <span
-                    className="h-2.5 w-2.5 rounded-full shrink-0"
-                    style={{ backgroundColor: REGION_COLORS[idx % REGION_COLORS.length] }}
-                  />
-                  <span className="text-gray-700 dark:text-gray-200 font-medium">{x.label}</span>
-                  <span className="text-gray-900 dark:text-white font-semibold">{x.count}</span>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
       </Card>
 
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
@@ -348,29 +342,19 @@ export default function Dashboard() {
             title="Indeks Risiko Gapura"
             collapsible
             headerExtra={
-              <div className="flex items-center gap-3">
-                <select
-                  value={chartPeriod}
-                  onChange={(e) => setChartPeriod(e.target.value)}
-                  className="text-xs sm:text-sm rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 px-2 py-1.5 text-gray-700 dark:text-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400"
-                >
-                  <option value="6months">6 Bulan Terakhir</option>
-                  <option value="currentMonth">Bulan Ini</option>
-                </select>
-                <div className="hidden sm:flex items-center gap-3 text-sm text-gray-600 dark:text-gray-300">
-                  <span className="inline-flex items-center gap-2">
-                    <span className="h-2 w-2 rounded-full bg-[#0d6efd]" />
-                    Skor rata-rata
-                  </span>
-                  <span className="inline-flex items-center gap-2">
-                    <span className="h-2 w-2 rounded-full bg-[#dc3545]" />
-                    Inherent Risk Ratio
-                  </span>
-                </div>
+              <div className="hidden sm:flex items-center gap-3 text-sm text-gray-600 dark:text-gray-300">
+                <span className="inline-flex items-center gap-2">
+                  <span className="h-2 w-2 rounded-full bg-[#0d6efd]" />
+                  Skor rata-rata
+                </span>
+                <span className="inline-flex items-center gap-2">
+                  <span className="h-2 w-2 rounded-full bg-[#dc3545]" />
+                  Inherent Risk Ratio
+                </span>
               </div>
             }
           >
-            <RiskTrendChart risks={risks} height={300} period={chartPeriod} />
+            <RiskTrendChart risks={filteredRisks} height={300} periodMonths={periodMonths} startMonth={startMonth} />
           </Card>
 
           <Card title="Distribusi Status Risiko" outline color="primary" collapsible>
@@ -527,7 +511,7 @@ export default function Dashboard() {
             }
           >
             <div className="h-[260px] bg-white/10 dark:bg-gray-800/20 rounded-lg overflow-hidden border border-white/20 dark:border-gray-700/30 relative">
-              <RiskMatrix risks={risks} />
+              <RiskMatrix risks={filteredRisks} />
             </div>
           </Card>
 

@@ -20,13 +20,6 @@ const crosshairPlugin = {
   },
 };
 
-function monthStart(offsetMonths = 0) {
-  const now = new Date();
-  const d = new Date(now.getFullYear(), now.getMonth() - offsetMonths, 1);
-  d.setHours(0, 0, 0, 0);
-  return d;
-}
-
 function monthEnd(startDate) {
   const d = new Date(startDate.getFullYear(), startDate.getMonth() + 1, 0);
   d.setHours(23, 59, 59, 999);
@@ -50,78 +43,83 @@ function fmtDateTitle(dateObj) {
 function fmtDateTick(dateObj) {
   const d = dateObj instanceof Date ? dateObj : new Date(dateObj);
   if (Number.isNaN(d.getTime())) return String(dateObj);
-  const day = d.getDate();
-  const month = new Intl.DateTimeFormat('en-GB', { month: 'short' }).format(d);
-  return `${day} ${month}`;
+  return `${d.getDate()} ${new Intl.DateTimeFormat('en-GB', { month: 'short' }).format(d)}`;
 }
 
-export default function RiskTrendChart({ risks = [], height = 300, period = '6months' }) {
+export default function RiskTrendChart({
+  risks = [],
+  height = 300,
+  periodMonths = 1,
+  startMonth = (() => { const n = new Date(); return { year: n.getFullYear(), month: n.getMonth() }; })(),
+}) {
   const canvasRef = useRef(null);
   const chartRef = useRef(null);
 
-  // Keep chart month-window in sync with the user's realtime clock (handles month rollover / manual clock changes)
-  const [monthKey, setMonthKey] = useState(() => {
+  const isDaily = periodMonths === 1;
+
+  // Clock tick — triggers re-computation when date changes
+  const [clockKey, setClockKey] = useState(() => {
     const d = new Date();
     return `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
   });
 
   useEffect(() => {
-    // For currentMonth mode, update more frequently (every minute) to catch day changes
-    // For 6months mode, update every 30 seconds is sufficient
-    const interval = period === 'currentMonth' ? 60_000 : 30_000;
-    
+    const interval = isDaily ? 60_000 : 30_000;
     const id = setInterval(() => {
       const d = new Date();
-      const key = period === 'currentMonth' 
-        ? `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`
-        : `${d.getFullYear()}-${d.getMonth()}`;
-      setMonthKey((prev) => (prev === key ? prev : key));
+      const key = `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
+      setClockKey((prev) => (prev === key ? prev : key));
     }, interval);
     return () => clearInterval(id);
-  }, [period]);
+  }, [isDaily]);
 
   const { labels, avgScore, inherentRiskRatio } = useMemo(() => {
     const now = new Date();
+    const selYear = startMonth.year;
+    const selMonth = startMonth.month;
+    const isCurrentMonth =
+      selYear === now.getFullYear() && selMonth === now.getMonth();
+
     let labelsLocal = [];
-    
-    if (period === 'currentMonth') {
-      // Generate labels for current month: from day 1 to today
-      const currentMonth = now.getMonth();
-      const currentYear = now.getFullYear();
-      const today = now.getDate();
-      
-      labelsLocal = Array.from({ length: today }, (_, i) => {
-        const d = new Date(currentYear, currentMonth, i + 1);
+
+    if (isDaily) {
+      const lastDay = isCurrentMonth
+        ? now.getDate()
+        : new Date(selYear, selMonth + 1, 0).getDate();
+      labelsLocal = Array.from({ length: lastDay }, (_, i) => {
+        const d = new Date(selYear, selMonth, i + 1);
         d.setHours(0, 0, 0, 0);
         return d;
       });
     } else {
-      // Generate 6 months: from 5 months ago to current month (0 = current month)
-      labelsLocal = [5, 4, 3, 2, 1, 0].map((n) => monthStart(n));
+      labelsLocal = Array.from({ length: periodMonths }, (_, i) => {
+        const d = new Date(selYear, selMonth + i, 1);
+        d.setHours(0, 0, 0, 0);
+        return d;
+      });
     }
 
-    const avg = labelsLocal.map((startDate, index) => {
-      let end;
-      if (period === 'currentMonth') {
-        // For current month mode, end is the current date/time for each day
-        end = new Date(startDate);
+    function bucketEnd(startDate, index) {
+      if (isDaily) {
+        const end = new Date(startDate);
         end.setHours(23, 59, 59, 999);
-        // If this is today, use current time
-        if (index === labelsLocal.length - 1) {
-          end = now;
-        }
+        if (isCurrentMonth && index === labelsLocal.length - 1) return now;
+        return end;
       } else {
-        // For 6 months mode, use end of month for past months, current time for current month
-        const isCurrentMonth = index === labelsLocal.length - 1;
-        end = isCurrentMonth ? now : monthEnd(startDate);
+        const bucketIsCurrentMonth =
+          startDate.getFullYear() === now.getFullYear() &&
+          startDate.getMonth() === now.getMonth();
+        return bucketIsCurrentMonth ? now : monthEnd(startDate);
       }
-      
+    }
+
+    const avg = labelsLocal.map((startDate, idx) => {
+      const end = bucketEnd(startDate, idx);
       const active = risks.filter((r) => {
         const created = new Date(r.createdAt || Date.now());
         if (Number.isNaN(created.getTime())) return false;
         return created <= end;
       });
-      // Use same score priority as Dashboard: score || inherentScore || currentScore || residualScore || residualScoreFinal
       const assessed = active.filter((r) => {
         const score = r.score || r.inherentScore || r.currentScore || r.residualScore || r.residualScoreFinal || 0;
         return score > 0;
@@ -134,45 +132,22 @@ export default function RiskTrendChart({ risks = [], height = 300, period = '6mo
       return Math.round((sum / assessed.length) * 10) / 10;
     });
 
-    // Calculate Inherent Risk Ratio: average of Total Inherent Score
-    const inherentRatio = labelsLocal.map((startDate, index) => {
-      let end;
-      if (period === 'currentMonth') {
-        // For current month mode, end is the current date/time for each day
-        end = new Date(startDate);
-        end.setHours(23, 59, 59, 999);
-        // If this is today, use current time
-        if (index === labelsLocal.length - 1) {
-          end = now;
-        }
-      } else {
-        // For 6 months mode, use end of month for past months, current time for current month
-        const isCurrentMonth = index === labelsLocal.length - 1;
-        end = isCurrentMonth ? now : monthEnd(startDate);
-      }
-      
+    const inherentRatio = labelsLocal.map((startDate, idx) => {
+      const end = bucketEnd(startDate, idx);
       const active = risks.filter((r) => {
         const created = new Date(r.createdAt || Date.now());
         if (Number.isNaN(created.getTime())) return false;
         return created <= end;
       });
-      
-      // Filter risks with inherent score > 0
-      const withInherentScore = active.filter((r) => {
-        const inherentScore = r.inherentScore || 0;
-        return inherentScore > 0;
-      });
-      
-      if (!withInherentScore.length) return 0;
-      
-      // Calculate average of inherent scores
-      const sum = withInherentScore.reduce((acc, r) => acc + (r.inherentScore || 0), 0);
-      return Math.round((sum / withInherentScore.length) * 10) / 10;
+      const withInherent = active.filter((r) => (r.inherentScore || 0) > 0);
+      if (!withInherent.length) return 0;
+      const sum = withInherent.reduce((acc, r) => acc + (r.inherentScore || 0), 0);
+      return Math.round((sum / withInherent.length) * 10) / 10;
     });
 
     return { labels: labelsLocal, avgScore: avg, inherentRiskRatio: inherentRatio };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [risks, period, monthKey]);
+  }, [risks, periodMonths, startMonth, isDaily, clockKey]);
 
   useEffect(() => {
     if (!canvasRef.current) return;
@@ -185,7 +160,6 @@ export default function RiskTrendChart({ risks = [], height = 300, period = '6mo
     const ctx = canvasRef.current.getContext('2d');
     if (!ctx) return;
 
-    // Register plugin only once to avoid duplicate registrations
     if (!Chart.registry.plugins.get('crosshairLine')) {
       Chart.register(crosshairPlugin);
     }
@@ -234,36 +208,27 @@ export default function RiskTrendChart({ risks = [], height = 300, period = '6mo
             callbacks: {
               title: (items) => {
                 const idx = items?.[0]?.dataIndex ?? 0;
-                if (period === 'currentMonth') {
-                  const d = labels[idx];
-                  return new Intl.DateTimeFormat('en-GB', { 
+                if (isDaily) {
+                  return new Intl.DateTimeFormat('en-GB', {
                     day: 'numeric',
-                    month: 'short', 
-                    year: 'numeric' 
-                  }).format(d);
+                    month: 'short',
+                    year: 'numeric',
+                  }).format(labels[idx]);
                 }
                 return fmtDateTitle(labels[idx]);
               },
             },
           },
         },
-        interaction: {
-          mode: 'index',
-          intersect: false,
-          axis: 'x',
-        },
+        interaction: { mode: 'index', intersect: false, axis: 'x' },
         scales: {
           x: {
             grid: { display: false },
             ticks: {
               color: '#6c757d',
-              callback: (_value, index) => {
-                if (period === 'currentMonth') {
-                  return fmtDateTick(labels[index]);
-                }
-                return fmtMonthTick(labels[index]);
-              },
-              maxTicksLimit: period === 'currentMonth' ? 31 : undefined,
+              callback: (_value, index) =>
+                isDaily ? fmtDateTick(labels[index]) : fmtMonthTick(labels[index]),
+              maxTicksLimit: isDaily ? 31 : undefined,
             },
           },
           y: {
@@ -288,7 +253,7 @@ export default function RiskTrendChart({ risks = [], height = 300, period = '6mo
         chartRef.current = null;
       }
     };
-  }, [labels, avgScore, inherentRiskRatio, period]);
+  }, [labels, avgScore, inherentRiskRatio, isDaily]);
 
   return (
     <div className="relative w-full" style={{ height }}>
@@ -296,5 +261,3 @@ export default function RiskTrendChart({ risks = [], height = 300, period = '6mo
     </div>
   );
 }
-
-
