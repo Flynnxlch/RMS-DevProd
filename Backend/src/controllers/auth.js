@@ -3,6 +3,7 @@ import jwt from 'jsonwebtoken';
 import { config } from '../config/index.js';
 import { prisma } from '../lib/prisma.js';
 import { requireRole } from '../middleware/auth.js';
+import { clearLoginFailures, isLoginLocked, recordLoginFailure } from '../middleware/rateLimit.js';
 import { checkConcurrentLoginLimit, trackUserSession } from '../middleware/session.js';
 
 /**
@@ -27,13 +28,33 @@ export const authController = {
           }
         );
       }
-      
+
+      // Resolve the client IP for lockout tracking
+      const forwarded = request.headers.get('X-Forwarded-For');
+      const clientIp = forwarded ? forwarded.split(',')[0].trim() : (request.headers.get('X-Real-IP') || 'unknown');
+
+      // Check if this IP is currently locked out due to too many failed attempts
+      const lockCheck = isLoginLocked(clientIp);
+      if (lockCheck.locked) {
+        return new Response(
+          JSON.stringify({
+            error: 'Too many failed login attempts. Please try again later.',
+            retryAfter: lockCheck.retryAfter,
+          }),
+          {
+            status: 429,
+            headers: { 'Content-Type': 'application/json', 'Retry-After': String(lockCheck.retryAfter) },
+          }
+        );
+      }
+
       // Find user by email
       const user = await prisma.user.findUnique({
         where: { email },
       });
-      
+
       if (!user) {
+        recordLoginFailure(clientIp);
         return new Response(
           JSON.stringify({ error: 'Invalid email or password' }),
           {
@@ -42,19 +63,26 @@ export const authController = {
           }
         );
       }
-      
+
       // Verify password
       const isValid = await bcrypt.compare(password, user.passwordHash);
-      
+
       if (!isValid) {
+        const failResult = recordLoginFailure(clientIp);
         return new Response(
-          JSON.stringify({ error: 'Invalid email or password' }),
+          JSON.stringify({
+            error: 'Invalid email or password',
+            ...(failResult.locked && { retryAfter: failResult.retryAfter }),
+          }),
           {
             status: 401,
             headers: { 'Content-Type': 'application/json' },
           }
         );
       }
+
+      // Successful authentication — clear failure counter
+      clearLoginFailures(clientIp);
       
       // Check concurrent login limit
       const loginLimitCheck = await checkConcurrentLoginLimit();
@@ -398,7 +426,6 @@ export const authController = {
 
       // Validate userId first, before parsing body
       if (!userId || userId === 'undefined' || userId === 'null') {
-        console.error('Invalid userId received:', userId);
         return new Response(
           JSON.stringify({ error: 'Invalid user ID: userId is required' }),
           { status: 400, headers: { 'Content-Type': 'application/json' } }
@@ -407,9 +434,8 @@ export const authController = {
 
       const userIdInt = parseInt(userId, 10);
       if (isNaN(userIdInt) || userIdInt <= 0) {
-        console.error('Invalid userId format:', userId, 'parsed as:', userIdInt);
         return new Response(
-          JSON.stringify({ error: `Invalid user ID: "${userId}" is not a valid number` }),
+          JSON.stringify({ error: 'Invalid user ID' }),
           { status: 400, headers: { 'Content-Type': 'application/json' } }
         );
       }
@@ -526,20 +552,14 @@ export const authController = {
         headers: { 'Content-Type': 'application/json' },
       });
     } catch (error) {
-      console.error('Update user error:', error);
-      console.error('Error details:', {
-        message: error.message,
-        stack: error.stack,
-        userId,
-      });
-      
-      // Return more specific error message in development
-      const errorMessage = process.env.NODE_ENV === 'development' 
-        ? (error.message || 'Internal server error')
-        : 'Internal server error';
-      
+      if (process.env.NODE_ENV !== 'production') {
+        console.error('Update user error:', error.message, error.stack);
+      } else {
+        console.error('Update user error:', error.message);
+      }
+
       return new Response(
-        JSON.stringify({ error: errorMessage }),
+        JSON.stringify({ error: 'Internal server error' }),
         { status: 500, headers: { 'Content-Type': 'application/json' } }
       );
     }

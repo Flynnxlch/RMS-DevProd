@@ -8,7 +8,13 @@ const rateLimitStore = new Map();
 const detectionHistory = []; // Array of detection events
 const MAX_DETECTION_HISTORY = 1000; // Keep last 1000 detection events
 
-// Cleanup old entries every 5 minutes
+// Login failure tracking for account lockout (keyed by IP)
+const loginFailureStore = new Map();
+const LOCKOUT_THRESHOLD = 10;        // lock after 10 consecutive failures
+const LOCKOUT_WINDOW_MS = 15 * 60 * 1000; // 15-minute window
+const LOCKOUT_DURATION_MS = 15 * 60 * 1000; // locked for 15 minutes
+
+// Cleanup old entries every minute (reduced from 5 min)
 setInterval(() => {
   const now = Date.now();
   for (const [key, data] of rateLimitStore.entries()) {
@@ -16,7 +22,14 @@ setInterval(() => {
       rateLimitStore.delete(key);
     }
   }
-}, 5 * 60 * 1000);
+  for (const [key, data] of loginFailureStore.entries()) {
+    if (data.lockedUntil && data.lockedUntil < now) {
+      loginFailureStore.delete(key);
+    } else if (data.windowStart && (now - data.windowStart) > LOCKOUT_WINDOW_MS) {
+      loginFailureStore.delete(key);
+    }
+  }
+}, 60 * 1000);
 
 /**
  * Add detection event to history
@@ -64,16 +77,61 @@ function getClientId(request) {
  * Rate limit configuration
  */
 const RATE_LIMITS = {
-  // Login/Register: 4 requests per minute
-  '/auth/login': { maxRequests: 8, windowMs: 60 * 1000 },
-  '/auth/register': { maxRequests: 15, windowMs: 60 * 1000 },
-  
-  // General API: 100 requests per minute
+  // Login: 5 attempts per minute per IP (brute-force protection)
+  '/auth/login': { maxRequests: 5, windowMs: 60 * 1000 },
+  // Register: 5 requests per minute (prevent registration spam)
+  '/auth/register': { maxRequests: 5, windowMs: 60 * 1000 },
+
+  // General API: 70 requests per minute
   default: { maxRequests: 70, windowMs: 60 * 1000 },
-  
-  // Strict endpoints: 20 requests per minute
+
+  // Strict endpoints (write operations): 20 requests per minute
   strict: { maxRequests: 20, windowMs: 60 * 1000 },
 };
+
+/**
+ * Record a failed login attempt for lockout tracking.
+ * Returns { locked: true, retryAfter } if the IP is now locked out.
+ */
+export function recordLoginFailure(ip) {
+  const now = Date.now();
+  let entry = loginFailureStore.get(ip);
+
+  if (!entry || (now - entry.windowStart) > LOCKOUT_WINDOW_MS) {
+    entry = { count: 0, windowStart: now, lockedUntil: null };
+  }
+
+  entry.count++;
+
+  if (entry.count >= LOCKOUT_THRESHOLD) {
+    entry.lockedUntil = now + LOCKOUT_DURATION_MS;
+    loginFailureStore.set(ip, entry);
+    return { locked: true, retryAfter: Math.ceil(LOCKOUT_DURATION_MS / 1000) };
+  }
+
+  loginFailureStore.set(ip, entry);
+  return { locked: false };
+}
+
+/**
+ * Clear login failure count on successful login.
+ */
+export function clearLoginFailures(ip) {
+  loginFailureStore.delete(ip);
+}
+
+/**
+ * Check if an IP is currently locked out.
+ */
+export function isLoginLocked(ip) {
+  const entry = loginFailureStore.get(ip);
+  if (!entry || !entry.lockedUntil) return { locked: false };
+  const now = Date.now();
+  if (entry.lockedUntil > now) {
+    return { locked: true, retryAfter: Math.ceil((entry.lockedUntil - now) / 1000) };
+  }
+  return { locked: false };
+}
 
 /**
  * Rate limiting middleware

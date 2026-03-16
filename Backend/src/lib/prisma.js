@@ -30,13 +30,7 @@ async function testConnection() {
     console.error('2. Verify your Supabase database is running and accessible');
     console.error('3. Check your network connection');
     console.error('4. For Supabase: Ensure your database is not paused');
-    console.error('5. Try using the direct connection string instead of pooler');
-    console.error('   (Get it from Supabase: Settings > Database > Connection string > Direct connection)');
-    
-    if (error.message.includes('pooler.supabase.com')) {
-      console.error('\n💡 Tip: If using Supabase pooler, try switching to direct connection');
-      console.error('   Direct connection format: db.xxxxx.supabase.co:5432');
-    }
+    console.error('5. Confirm DATABASE_URL uses the session pooler (port 5432 on pooler.supabase.com)');
   }
 }
 

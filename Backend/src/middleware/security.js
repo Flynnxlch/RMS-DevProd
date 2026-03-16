@@ -30,14 +30,18 @@ export function securityHeaders(request, response) {
   }
   
   // Content Security Policy
-  // Adjust based on your needs - React may need 'unsafe-inline' for styles
+  // 'unsafe-eval' is removed — React production builds do not require it.
+  // 'unsafe-inline' is kept for Tailwind class-based styles until a nonce strategy is adopted.
+  const connectOrigins = Array.isArray(config.cors.origin)
+    ? config.cors.origin.join(' ')
+    : config.cors.origin;
   const csp = [
     "default-src 'self'",
-    "script-src 'self' 'unsafe-inline' 'unsafe-eval'", // React needs unsafe-eval in dev
-    "style-src 'self' 'unsafe-inline'", // Tailwind/Bootstrap need unsafe-inline
+    "script-src 'self' 'unsafe-inline'",
+    "style-src 'self' 'unsafe-inline'",
     "img-src 'self' data: https:",
     "font-src 'self' data:",
-    `connect-src 'self' ${config.cors.origin}`,
+    `connect-src 'self' ${connectOrigins}`,
     "frame-ancestors 'none'",
   ].join('; ');
   

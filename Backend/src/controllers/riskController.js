@@ -22,15 +22,18 @@ export const riskController = {
 
       const url = new URL(request.url);
       const regionCode = url.searchParams.get('regionCode');
-      
+
       // Sorting parameter
       const sortBy = url.searchParams.get('sortBy') || 'highest-risk'; // Default: highest-risk
-      
+
+      // Pagination parameters (cap at 1000 to prevent unbounded queries)
+      const page = Math.max(1, parseInt(url.searchParams.get('page') || '1', 10));
+      const limit = Math.min(1000, Math.max(1, parseInt(url.searchParams.get('limit') || '500', 10)));
+
       // Refresh parameter: if true, bypass cache and fetch fresh data from database
       const forceRefresh = url.searchParams.get('refresh') === 'true';
-      
-      // Log for debugging (can be removed in production)
-      if (forceRefresh) {
+
+      if (forceRefresh && process.env.NODE_ENV !== 'production') {
         console.log('[Cache] Force refresh requested - bypassing cache and fetching fresh data from database');
       }
 
@@ -72,7 +75,7 @@ export const riskController = {
       if (forceRefresh) {
         // Force refresh: Clear ALL risks cache to ensure fresh data
         // This ensures we get fresh data from database, not from cache
-        console.log(`[Cache] Force refresh - Clearing all risks cache`);
+        if (process.env.NODE_ENV !== 'production') console.log(`[Cache] Force refresh - Clearing all risks cache`);
         clearCacheByPattern('risks:');
         // Explicitly delete this specific cache key as well
         deleteCache(cacheKey);
@@ -80,7 +83,7 @@ export const riskController = {
         // Normal request: Check cache first
         const cachedData = getCache(cacheKey);
         if (cachedData) {
-          console.log(`[Cache] Returning cached data for key: ${cacheKey}`);
+          if (process.env.NODE_ENV !== 'production') console.log(`[Cache] Returning cached data for key: ${cacheKey}`);
           return new Response(JSON.stringify(cachedData), {
             status: 200,
             headers: {
@@ -89,7 +92,7 @@ export const riskController = {
             },
           });
         }
-        console.log(`[Cache] Cache miss for key: ${cacheKey} - fetching from database`);
+        if (process.env.NODE_ENV !== 'production') console.log(`[Cache] Cache miss for key: ${cacheKey} - fetching from database`);
       }
 
       // Fetch all risks (for sorting by calculated score)
@@ -206,8 +209,10 @@ export const riskController = {
           });
       }
 
-      // Return all sorted risks (no pagination)
-      const risks = sortedRisks;
+      // Paginate the sorted result set
+      const totalRisks = sortedRisks.length;
+      const offset = (page - 1) * limit;
+      const risks = sortedRisks.slice(offset, offset + limit);
 
       // Transform to frontend format (scores already calculated during sorting)
       const formattedRisks = risks.map(risk => {
@@ -346,16 +351,22 @@ export const riskController = {
         };
       });
 
-      // Prepare response (no pagination)
+      // Prepare response with pagination metadata
       const responseData = {
         risks: formattedRisks,
+        pagination: {
+          page,
+          limit,
+          total: totalRisks,
+          totalPages: Math.ceil(totalRisks / limit),
+        },
       };
 
       // Save to cache after query (with 2-minute TTL)
       // This applies to both normal requests and force refresh requests
       // After force refresh, the fresh data is cached for subsequent requests
       setCache(cacheKey, responseData);
-      if (forceRefresh) {
+      if (forceRefresh && process.env.NODE_ENV !== 'production') {
         console.log(`[Cache] Fresh data fetched and cached for key: ${cacheKey}`);
       }
 
@@ -654,7 +665,7 @@ export const riskController = {
         // RISK_CHAMPION and RISK_OFFICER: always use their regionCabang
         finalRegionCode = user.regionCabang || 'KPS';
         // If they try to send a different regionCode, ignore it and use their regionCabang
-        if (regionCode && regionCode !== user.regionCabang) {
+        if (regionCode && regionCode !== user.regionCabang && process.env.NODE_ENV !== 'production') {
           console.warn(`User ${user.id} (${user.userRole}) tried to set regionCode to ${regionCode}, but using their regionCabang ${user.regionCabang} instead`);
         }
       }
@@ -803,9 +814,15 @@ export const riskController = {
       if (body.riskImpactExplanation !== undefined) updateData.riskImpactExplanation = body.riskImpactExplanation;
       if (body.category !== undefined) updateData.category = body.category;
       if (body.riskCategoryType !== undefined) updateData.riskCategoryType = body.riskCategoryType;
-      if (body.regionCode !== undefined) updateData.regionCode = body.regionCode;
-      if (body.evaluationRequested !== undefined) updateData.evaluationRequested = body.evaluationRequested;
-      if (body.evaluationRequestedAt !== undefined) {
+      // Only RISK_ASSESSMENT can reassign a risk to a different region
+      if (body.regionCode !== undefined && user.userRole === 'RISK_ASSESSMENT') {
+        updateData.regionCode = body.regionCode;
+      }
+      // Only RISK_CHAMPION and RISK_ASSESSMENT can toggle evaluation request flag
+      if (body.evaluationRequested !== undefined && ['RISK_CHAMPION', 'RISK_ASSESSMENT'].includes(user.userRole)) {
+        updateData.evaluationRequested = body.evaluationRequested;
+      }
+      if (body.evaluationRequestedAt !== undefined && ['RISK_CHAMPION', 'RISK_ASSESSMENT'].includes(user.userRole)) {
         updateData.evaluationRequestedAt = body.evaluationRequestedAt ? new Date(body.evaluationRequestedAt) : null;
       }
 
@@ -934,6 +951,24 @@ export const riskController = {
         );
       }
 
+      // Enforce ownership / region access before allowing analysis writes
+      if (user.userRole === 'RISK_OFFICER') {
+        if (risk.userId !== user.id) {
+          return new Response(
+            JSON.stringify({ error: 'Access denied' }),
+            { status: 403, headers: { 'Content-Type': 'application/json' } }
+          );
+        }
+      } else if (user.userRole === 'RISK_CHAMPION') {
+        if (user.regionCabang && user.regionCabang !== 'KPS' && risk.regionCode !== user.regionCabang) {
+          return new Response(
+            JSON.stringify({ error: 'Access denied' }),
+            { status: 403, headers: { 'Content-Type': 'application/json' } }
+          );
+        }
+      }
+      // RISK_ASSESSMENT can write analysis on any risk
+
       const body = await request.json();
       const {
         existingControl,
@@ -956,20 +991,17 @@ export const riskController = {
         residualPossibilityDescription,
       } = body;
 
-      // Trust scores sent by frontend (already computed via RiskMatrix)
-      const inherentScore = body.inherentScore !== undefined ? Number(body.inherentScore) : null;
-      const inherentLevel = body.inherentLevel !== undefined
-        ? body.inherentLevel
-        : inherentScore
-          ? getRiskLevel(inherentScore)?.label ?? null
-          : null;
+      // Server-side score calculation — never trust values sent by the client.
+      // Score = impactLevel × possibilityType (integer multiplication).
+      const parsedImpact = impactLevel !== undefined && impactLevel !== null ? Number(impactLevel) : null;
+      const parsedPossibility = possibilityType !== undefined && possibilityType !== null ? Number(possibilityType) : null;
+      const inherentScore = (parsedImpact && parsedPossibility) ? parsedImpact * parsedPossibility : null;
+      const inherentLevel = inherentScore ? getRiskLevel(inherentScore)?.label ?? null : null;
 
-      const residualScore = body.residualScore !== undefined ? Number(body.residualScore) : null;
-      const residualLevel = body.residualLevel !== undefined
-        ? body.residualLevel
-        : residualScore
-          ? getRiskLevel(residualScore)?.label ?? null
-          : null;
+      const parsedResidualImpact = residualImpactLevel !== undefined && residualImpactLevel !== null ? Number(residualImpactLevel) : null;
+      const parsedResidualPossibility = residualPossibilityType !== undefined && residualPossibilityType !== null ? Number(residualPossibilityType) : null;
+      const residualScore = (parsedResidualImpact && parsedResidualPossibility) ? parsedResidualImpact * parsedResidualPossibility : null;
+      const residualLevel = residualScore ? getRiskLevel(residualScore)?.label ?? null : null;
 
       // Upsert analysis
       const analysis = await prisma.riskAnalysis.upsert({
@@ -1059,6 +1091,14 @@ export const riskController = {
         );
       }
 
+      // Only RISK_OFFICER and RISK_CHAMPION can create/update mitigations
+      if (!['RISK_OFFICER', 'RISK_CHAMPION'].includes(user.userRole)) {
+        return new Response(
+          JSON.stringify({ error: 'Access denied. Only Risk Officer and Risk Champion can manage mitigation plans.' }),
+          { status: 403, headers: { 'Content-Type': 'application/json' } }
+        );
+      }
+
       // Verify risk exists and get analysis to ensure inherentScore is from analysis
       const risk = await prisma.risk.findUnique({
         where: { id: riskId },
@@ -1072,6 +1112,23 @@ export const riskController = {
           JSON.stringify({ error: 'Risk not found' }),
           { status: 404, headers: { 'Content-Type': 'application/json' } }
         );
+      }
+
+      // Enforce ownership / region access before allowing mitigation writes
+      if (user.userRole === 'RISK_OFFICER') {
+        if (risk.userId !== user.id) {
+          return new Response(
+            JSON.stringify({ error: 'Access denied' }),
+            { status: 403, headers: { 'Content-Type': 'application/json' } }
+          );
+        }
+      } else if (user.userRole === 'RISK_CHAMPION') {
+        if (user.regionCabang && user.regionCabang !== 'KPS' && risk.regionCode !== user.regionCabang) {
+          return new Response(
+            JSON.stringify({ error: 'Access denied' }),
+            { status: 403, headers: { 'Content-Type': 'application/json' } }
+          );
+        }
       }
 
       const body = await request.json();
@@ -1192,6 +1249,24 @@ export const riskController = {
           { status: 404, headers: { 'Content-Type': 'application/json' } }
         );
       }
+
+      // Enforce ownership / region access before allowing evaluation writes
+      if (user.userRole === 'RISK_OFFICER') {
+        if (risk.userId !== user.id) {
+          return new Response(
+            JSON.stringify({ error: 'Access denied' }),
+            { status: 403, headers: { 'Content-Type': 'application/json' } }
+          );
+        }
+      } else if (user.userRole === 'RISK_CHAMPION') {
+        if (user.regionCabang && user.regionCabang !== 'KPS' && risk.regionCode !== user.regionCabang) {
+          return new Response(
+            JSON.stringify({ error: 'Access denied' }),
+            { status: 403, headers: { 'Content-Type': 'application/json' } }
+          );
+        }
+      }
+      // RISK_ASSESSMENT can evaluate any risk
 
       const body = await request.json();
       const {

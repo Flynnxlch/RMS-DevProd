@@ -162,8 +162,16 @@ export const regulationController = {
         );
       }
 
+      const VALID_CONTENT_TYPES = ['TEXT', 'IMAGE'];
+      const contentTypeEnum = contentType.toUpperCase();
+      if (!VALID_CONTENT_TYPES.includes(contentTypeEnum)) {
+        return new Response(
+          JSON.stringify({ error: `Invalid contentType. Must be one of: ${VALID_CONTENT_TYPES.join(', ')}` }),
+          { status: 400, headers: { 'Content-Type': 'application/json' } }
+        );
+      }
+
       let finalContent = content;
-      let contentTypeEnum = contentType.toUpperCase();
 
       // If content type is IMAGE and content is base64, upload to Supabase
       if (contentTypeEnum === 'IMAGE' && content.startsWith('data:image/')) {
@@ -293,8 +301,17 @@ export const regulationController = {
         );
       }
 
+      const VALID_CONTENT_TYPES_UPDATE = ['TEXT', 'IMAGE'];
+      const resolvedContentType = contentType ? contentType.toUpperCase() : existing.contentType;
+      if (!VALID_CONTENT_TYPES_UPDATE.includes(resolvedContentType)) {
+        return new Response(
+          JSON.stringify({ error: `Invalid contentType. Must be one of: ${VALID_CONTENT_TYPES_UPDATE.join(', ')}` }),
+          { status: 400, headers: { 'Content-Type': 'application/json' } }
+        );
+      }
+
       let finalContent = content;
-      let contentTypeEnum = contentType ? contentType.toUpperCase() : existing.contentType;
+      const contentTypeEnum = resolvedContentType;
 
       // If content type is IMAGE and content is base64, upload to Supabase
       if (contentTypeEnum === 'IMAGE' && content && content.startsWith('data:image/')) {

@@ -89,9 +89,11 @@ export function RiskProvider({ children }) {
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 second timeout
       
-      // Build URL with sorting parameter (no pagination)
+      // Build URL with sorting and pagination parameters
+      // limit=500 covers most organisations; increase if needed
       const url = new URL(API_ENDPOINTS.risks.getAll);
       url.searchParams.set('sortBy', sortBy);
+      url.searchParams.set('limit', '500');
       
       // Add refresh parameter to bypass cache when forceRefresh is true
       // Also add timestamp for cache-busting to ensure browser doesn't cache the request

@@ -29,12 +29,8 @@ export const config = {
       if (env.JWT_SECRET) {
         return env.JWT_SECRET;
       }
-      if (env.NODE_ENV === 'production') {
-        throw new Error('JWT_SECRET must be set in production environment');
-      }
-      // Only allow default in development
-      console.warn('⚠️  WARNING: Using default JWT secret. Set JWT_SECRET in production!');
-      return 'dev-secret-change-in-production';
+      // Enforce JWT_SECRET in all environments — no insecure fallback
+      throw new Error('JWT_SECRET environment variable must be set before starting the server');
     })(),
     expiresIn: env.JWT_EXPIRES_IN || '1h', // Default: 1 hour for security
     rememberMeExpiresIn: '7d',

@@ -40,20 +40,17 @@ export const measurementController = {
       }
 
       const body = await request.json();
+      // Note: client-sent score/level values are ignored; scores are recomputed server-side.
       const {
         treatmentOption,
         impactLevel,
         impactDescription,
         possibilityType,
         possibilityDescription,
-        inherentScore,
-        inherentLevel,
         residualImpactLevel,
         residualImpactDescription,
         residualPossibilityType,
         residualPossibilityDescription,
-        residualScore,
-        residualLevel,
       } = body;
 
       if (!treatmentOption) {
@@ -70,6 +67,19 @@ export const measurementController = {
         );
       }
 
+      // Server-side score calculation — never trust client-sent score values.
+      const parsedImpact = Number(impactLevel);
+      const parsedPossibility = Number(possibilityType);
+      const computedInherentScore = (parsedImpact && parsedPossibility) ? parsedImpact * parsedPossibility : null;
+      const computedInherentLevel = computedInherentScore ? getRiskLevel(computedInherentScore)?.label || null : null;
+
+      const parsedResidualImpact = residualImpactLevel ? Number(residualImpactLevel) : null;
+      const parsedResidualPossibility = residualPossibilityType ? Number(residualPossibilityType) : null;
+      const computedResidualScore = (parsedResidualImpact && parsedResidualPossibility)
+        ? parsedResidualImpact * parsedResidualPossibility
+        : null;
+      const computedResidualLevel = computedResidualScore ? getRiskLevel(computedResidualScore)?.label || null : null;
+
       // Upsert: one measurement per risk
       const measurement = await prisma.riskMeasurement.upsert({
         where: { riskId },
@@ -77,33 +87,33 @@ export const measurementController = {
           riskId,
           treatmentOption,
           impactDescription: impactDescription || null,
-          impactLevel: Number(impactLevel),
-          possibilityType: Number(possibilityType),
+          impactLevel: parsedImpact,
+          possibilityType: parsedPossibility,
           possibilityDescription: possibilityDescription || null,
-          inherentScore: inherentScore ? Number(inherentScore) : null,
-          inherentLevel: inherentLevel || getRiskLevel(Number(inherentScore))?.label || null,
+          inherentScore: computedInherentScore,
+          inherentLevel: computedInherentLevel,
           residualImpactDescription: residualImpactDescription || null,
-          residualImpactLevel: residualImpactLevel ? Number(residualImpactLevel) : null,
-          residualPossibilityType: residualPossibilityType ? Number(residualPossibilityType) : null,
+          residualImpactLevel: parsedResidualImpact,
+          residualPossibilityType: parsedResidualPossibility,
           residualPossibilityDescription: residualPossibilityDescription || null,
-          residualScore: residualScore ? Number(residualScore) : null,
-          residualLevel: residualLevel || null,
+          residualScore: computedResidualScore,
+          residualLevel: computedResidualLevel,
           measuredBy: user.id,
         },
         update: {
           treatmentOption,
           impactDescription: impactDescription || null,
-          impactLevel: Number(impactLevel),
-          possibilityType: Number(possibilityType),
+          impactLevel: parsedImpact,
+          possibilityType: parsedPossibility,
           possibilityDescription: possibilityDescription || null,
-          inherentScore: inherentScore ? Number(inherentScore) : null,
-          inherentLevel: inherentLevel || getRiskLevel(Number(inherentScore))?.label || null,
+          inherentScore: computedInherentScore,
+          inherentLevel: computedInherentLevel,
           residualImpactDescription: residualImpactDescription || null,
-          residualImpactLevel: residualImpactLevel ? Number(residualImpactLevel) : null,
-          residualPossibilityType: residualPossibilityType ? Number(residualPossibilityType) : null,
+          residualImpactLevel: parsedResidualImpact,
+          residualPossibilityType: parsedResidualPossibility,
           residualPossibilityDescription: residualPossibilityDescription || null,
-          residualScore: residualScore ? Number(residualScore) : null,
-          residualLevel: residualLevel || null,
+          residualScore: computedResidualScore,
+          residualLevel: computedResidualLevel,
           measuredBy: user.id,
           measuredAt: new Date(),
         },

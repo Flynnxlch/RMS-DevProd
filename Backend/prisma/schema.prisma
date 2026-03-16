@@ -96,6 +96,7 @@ model RiskApproval {
   user  User  @relation(fields: [userId], references: [id])
 
   @@index([riskId])
+  @@index([userId])
   @@map("risk_approvals")
 }
 
@@ -293,6 +294,8 @@ model RiskEvaluation {
   risk  Risk  @relation(fields: [riskId], references: [id], onDelete: Cascade)
   user  User  @relation(fields: [userId], references: [id])
 
+  @@index([riskId])
+  @@index([userId])
   @@map("risk_evaluations")
 }
 
@@ -321,6 +324,8 @@ model UserRegistrationRequest {
 
   processedByUser User? @relation("ProcessedRegRequests", fields: [processedBy], references: [id])
 
+  @@index([status])
+  @@index([email])
   @@map("user_registration_requests")
 }
 
@@ -347,6 +352,9 @@ model OtherRequest {
   user            User  @relation("UserOtherRequests", fields: [userId], references: [id], onDelete: Cascade)
   processedByUser User? @relation("ProcessedOtherRequests", fields: [processedBy], references: [id])
 
+  @@index([userId])
+  @@index([status])
+  @@index([type])
   @@map("other_requests")
 }
 
@@ -371,6 +379,7 @@ model RegulationUpdate {
   createdAt     DateTime  @default(now()) @map("created_at")
   updatedAt     DateTime  @updatedAt @map("updated_at")
 
+  @@index([publishedAt])
   @@map("regulation_updates")
 }
 

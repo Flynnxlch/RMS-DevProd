@@ -26,14 +26,21 @@ export const requestController = {
       }
 
       const url = new URL(request.url);
-      const status = url.searchParams.get('status');
+      const statusParam = url.searchParams.get('status');
+      const VALID_STATUSES = ['PENDING', 'APPROVED', 'REJECTED'];
 
       const where = {};
-      // Default to only show PENDING requests (hide approved/rejected)
-      if (status) {
-        where.status = status.toUpperCase();
+      if (statusParam) {
+        const normalised = statusParam.toUpperCase();
+        if (!VALID_STATUSES.includes(normalised)) {
+          return new Response(
+            JSON.stringify({ error: `Invalid status. Must be one of: ${VALID_STATUSES.join(', ')}` }),
+            { status: 400, headers: { 'Content-Type': 'application/json' } }
+          );
+        }
+        where.status = normalised;
       } else {
-        where.status = 'PENDING'; // Only show pending requests by default
+        where.status = 'PENDING'; // Default to pending
       }
 
       // Risk Champion can only see requests for their region
@@ -424,7 +431,15 @@ export const requestController = {
 
       // Handle different request types
       if (otherRequest.type === 'ADMIN_ACCESS') {
-        // Grant admin access (example: upgrade to RISK_CHAMPION)
+        // Only RISK_ASSESSMENT (the highest role) can grant role elevation.
+        // A RISK_CHAMPION must not be able to elevate another user to their own level.
+        if (user.userRole !== 'RISK_ASSESSMENT') {
+          return new Response(
+            JSON.stringify({ error: 'Only Risk Assessment can approve role-elevation requests.' }),
+            { status: 403, headers: { 'Content-Type': 'application/json' } }
+          );
+        }
+        // Upgrade the requesting user to RISK_CHAMPION
         await prisma.user.update({
           where: { id: otherRequest.userId },
           data: {
