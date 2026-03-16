@@ -1,0 +1,12 @@
+-- Phase 1: Rename UserRole enum values
+-- ADMIN_PUSAT  → RISK_ASSESSMENT
+-- ADMIN_CABANG → RISK_CHAMPION
+-- USER_BIASA   → RISK_OFFICER
+
+ALTER TYPE "UserRole" RENAME VALUE 'ADMIN_PUSAT'  TO 'RISK_ASSESSMENT';
+ALTER TYPE "UserRole" RENAME VALUE 'ADMIN_CABANG' TO 'RISK_CHAMPION';
+ALTER TYPE "UserRole" RENAME VALUE 'USER_BIASA'   TO 'RISK_OFFICER';
+
+-- Update the column default to use the new enum value name
+ALTER TABLE "users"
+  ALTER COLUMN "user_role" SET DEFAULT 'RISK_OFFICER'::"UserRole";

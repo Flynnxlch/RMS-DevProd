@@ -1,0 +1,213 @@
+/* Source Sans 3 font import - must be at top for PostCSS */
+@import url('https://fonts.googleapis.com/css2?family=Source+Sans+3:wght@300;400;500;600;700&display=swap');
+
+@import "tailwindcss";
+
+/* Tailwind v4: make `dark:` variant respond to `.dark` class (theme toggle). */
+@custom-variant dark (&:where(.dark, .dark *));
+
+/* AdminLTE Theme Variables */
+:root {
+  /* Sidebar dimensions */
+  --sidebar-width: 250px;
+  --sidebar-mini-width: 4.6rem;
+  --header-height: 3.5rem;
+  
+  /* Transition settings */
+  --transition-speed: 0.3s;
+  --transition-fn: ease-in-out;
+  
+  /* AdminLTE Colors */
+  --color-primary: #0d6efd;
+  --color-secondary: #6c757d;
+  --color-success: #198754;
+  --color-info: #0dcaf0;
+  --color-warning: #ffc107;
+  --color-danger: #dc3545;
+  --color-light: #f8f9fa;
+  --color-dark: #212529;
+  
+  /* Body colors */
+  --color-body-bg: #f4f6f9;
+  --color-body-bg-dark: #1a1d29;
+  --color-body-tertiary: #dee2e6;
+  
+  /* Text colors */
+  --color-text-primary: #212529;
+  --color-text-secondary: #6c757d;
+  --color-text-dark: #ffffff;
+  --color-text-dark-secondary: rgba(255, 255, 255, 0.8);
+  
+  /* Theme-aware text colors (will be overridden in dark mode) */
+  --color-text: var(--color-text-primary);
+  --color-text-muted: var(--color-text-secondary);
+  
+  /* Card colors */
+  --color-card-bg: #ffffff;
+  --color-card-bg-dark: #252932;
+  --color-card-border: #e9ecef;
+  --color-card-border-dark: #3a3f4a;
+  
+  /* Sidebar colors (green theme) */
+  --color-sidebar-bg: #0c9361;
+  --color-sidebar-hover-bg: rgba(255, 255, 255, 0.15);
+  --color-sidebar-color: rgba(255, 255, 255, 0.9);
+  --color-sidebar-hover-color: #ffffff;
+  --color-sidebar-active-color: #ffffff;
+  --color-sidebar-submenu-color: rgba(255, 255, 255, 0.7);
+  --color-sidebar-submenu-hover-color: #ffffff;
+  --color-sidebar-header-color: rgba(255, 255, 255, 0.6);
+  --color-sidebar-border: rgba(255, 255, 255, 0.2);
+  
+  /* Card styling */
+  --shadow-card: 0 0 1px rgba(0, 0, 0, 0.125), 0 1px 3px rgba(0, 0, 0, 0.2);
+  
+  /* Font */
+  --font-family-base: 'Source Sans 3', system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+}
+
+/* Base styles */
+/* NOTE: Tailwind already applies a base reset. Avoid overriding utilities (v4 uses low-specificity selectors). */
+*, ::before, ::after {
+  box-sizing: border-box;
+}
+
+html {
+  font-size: 16px;
+  scroll-behavior: smooth;
+}
+
+body {
+  font-family: var(--font-family-base);
+  font-size: 1rem;
+  font-weight: 400;
+  line-height: 1.5;
+  color: var(--color-text-primary);
+  background-color: var(--color-body-bg);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  transition: background-color 0.3s ease, color 0.3s ease;
+}
+
+/* Dark theme */
+body.dark,
+[data-theme='dark'],
+.dark {
+  background-color: var(--color-body-bg-dark);
+  color: var(--color-text-dark);
+}
+
+body.dark .card,
+[data-theme='dark'] .card,
+.dark .card {
+  background-color: var(--color-card-bg-dark);
+  border-color: var(--color-card-border-dark);
+  color: var(--color-text-dark);
+}
+
+/* Dark theme text color overrides */
+.dark,
+.dark * {
+  --color-text: var(--color-text-dark);
+  --color-text-muted: var(--color-text-dark-secondary);
+}
+
+/* Hide scrollbars (sidebar + main) but keep scrolling usable */
+.no-scrollbar {
+  -ms-overflow-style: none; /* IE/Edge legacy */
+  scrollbar-width: none; /* Firefox */
+}
+.no-scrollbar::-webkit-scrollbar {
+  width: 0;
+  height: 0;
+}
+
+/* Hide page scrollbar (matches request) */
+html, body {
+  scrollbar-width: none;
+}
+html::-webkit-scrollbar,
+body::-webkit-scrollbar {
+  width: 0;
+  height: 0;
+}
+
+/* Animations */
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes fadeOut {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+  }
+}
+
+@keyframes slideInLeft {
+  from {
+    transform: translateX(-100%);
+  }
+  to {
+    transform: translateX(0);
+  }
+}
+
+@keyframes slideOutLeft {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(-100%);
+  }
+}
+
+/* Container fluid */
+.container-fluid {
+  width: 100%;
+  padding-right: 0.75rem;
+  padding-left: 0.75rem;
+  margin-right: auto;
+  margin-left: auto;
+}
+
+/* Utility classes for AdminLTE specific styling */
+.animate-fade-in {
+  animation: fadeIn 0.3s ease-in-out forwards;
+}
+
+.animate-fade-out {
+  animation: fadeOut 0.3s ease-in-out forwards;
+}
+
+/* Small box icon animation */
+.small-box:hover .small-box-icon {
+  transform: scale(1.1);
+}
+
+/* Nav arrow rotation for treeview */
+.menu-open > a > .nav-arrow,
+.menu-open > a > p > .nav-arrow {
+  transform: rotate(90deg);
+}
+
+/* jsvectormap: make zoom controls look like AdminLTE */
+.jvm-zoom-btn {
+  width: 28px;
+  height: 28px;
+  line-height: 28px;
+  border-radius: 0.375rem;
+  background: rgba(0, 0, 0, 0.25);
+  color: rgba(255, 255, 255, 0.95);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+  }
+.jvm-zoom-btn:hover {
+  background: rgba(0, 0, 0, 0.35);
+}

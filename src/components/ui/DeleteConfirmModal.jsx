@@ -1,0 +1,55 @@
+export default function DeleteConfirmModal({ isOpen, onClose, onConfirm, title = 'Konfirmasi Hapus', message, itemName }) {
+  if (!isOpen) return null;
+
+  return (
+    <>
+      <div 
+        className="fixed inset-0 bg-black/50 dark:bg-black/70 z-50 transition-opacity backdrop-blur-sm" 
+        onClick={onClose}
+      />
+      <div className="fixed inset-0 z-50 flex items-center justify-center p-4 pointer-events-none">
+        <div
+          className="w-full max-w-md bg-white dark:bg-[var(--color-card-bg-dark)] rounded-lg shadow-2xl border border-gray-200 dark:border-[var(--color-card-border-dark)] pointer-events-auto"
+          onClick={(e) => e.stopPropagation()}
+        >
+          <div className="p-6">
+            {/* Icon */}
+            <div className="flex justify-center mb-4">
+              <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-red-100 dark:bg-red-900/30">
+                <i className="bi bi-exclamation-triangle text-red-600 dark:text-red-400 text-3xl"></i>
+              </div>
+            </div>
+
+            {/* Title */}
+            <h3 className="text-lg font-semibold text-gray-900 dark:text-white text-center mb-2">
+              {title}
+            </h3>
+
+            {/* Description */}
+            <p className="text-sm text-gray-600 dark:text-gray-300 text-center mb-6">
+              {message || `Apakah Anda yakin ingin menghapus ${itemName ? `"${itemName}"` : 'item ini'}? Tindakan ini tidak dapat dibatalkan.`}
+            </p>
+
+            {/* Buttons */}
+            <div className="flex flex-col-reverse sm:flex-row sm:items-center sm:justify-end gap-3">
+              <button
+                type="button"
+                onClick={onClose}
+                className="w-full sm:w-auto px-4 py-2 text-sm font-semibold text-gray-700 dark:text-gray-300 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-white/5 transition-colors"
+              >
+                Batal
+              </button>
+              <button
+                type="button"
+                onClick={onConfirm}
+                className="w-full sm:w-auto px-4 py-2 text-sm font-semibold text-white bg-red-600 dark:bg-red-500 rounded-lg hover:bg-red-700 dark:hover:bg-red-600 transition-colors"
+              >
+                Hapus
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </>
+  );
+}

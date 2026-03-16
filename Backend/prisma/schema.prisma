@@ -1,0 +1,322 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ============================================
+// USER MANAGEMENT
+// ============================================
+
+model User {
+  id            Int       @id @default(autoincrement())
+  email         String    @unique @db.VarChar(255)
+  passwordHash  String    @map("password_hash") @db.VarChar(255)
+  name          String    @db.VarChar(255)
+  nip           String?   @db.VarChar(50)
+  userRole      UserRole  @default(RISK_OFFICER) @map("user_role")
+  regionCabang  Cabang?   @map("region_cabang")
+  department    String?   @db.VarChar(255)
+  avatar        String?   @db.VarChar(500)
+  memberSince   String?   @map("member_since") @db.VarChar(50)
+  createdAt     DateTime  @default(now()) @map("created_at")
+  updatedAt     DateTime  @updatedAt @map("updated_at")
+  
+  risks                 Risk[]
+  riskEvaluations       RiskEvaluation[]
+  processedRegRequests  UserRegistrationRequest[] @relation("ProcessedRegRequests")
+  processedOtherRequests OtherRequest[] @relation("ProcessedOtherRequests")
+  otherRequests         OtherRequest[] @relation("UserOtherRequests")
+
+  @@map("users")
+}
+
+enum UserRole {
+  RISK_ASSESSMENT
+  RISK_CHAMPION
+  RISK_OFFICER
+}
+
+// ============================================
+// RISK REGISTRY (Formulir Entri Risiko)
+// ============================================
+
+model Risk {
+  id                      String    @id @db.VarChar(50)
+  userId                  Int       @map("user_id")
+  riskEvent               String    @db.Text
+  title                   String?   @db.VarChar(500)
+  // Organization: Fixed value "PT. Gapura Angkasa" from RiskForm
+  organization            String?   @db.VarChar(255)
+  division                String?   @db.VarChar(255)
+  target                  String?   @db.Text
+  riskEventDescription    String?   @db.Text @map("risk_event_description")
+  riskCause               String?   @db.Text @map("risk_cause")
+  riskImpactExplanation   String?   @db.Text @map("risk_impact_explanation")
+  // Category: Values from CATEGORY_OPTIONS in CategoryDropdown
+  category                String?   @db.VarChar(500)
+  riskCategoryType        String?   @map("risk_category_type") @db.VarChar(255)
+  regionCode              Cabang?   @map("region_code")
+  evaluationRequested     Boolean?  @default(false) @map("evaluation_requested")
+  evaluationRequestedAt   DateTime? @map("evaluation_requested_at")
+  createdAt               DateTime  @default(now()) @map("created_at")
+  updatedAt               DateTime  @updatedAt @map("updated_at")
+
+  user            User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  analysis        RiskAnalysis?
+  mitigation      RiskMitigation?
+  evaluations     RiskEvaluation[]
+
+  @@index([userId])
+  @@index([regionCode])
+  @@map("risks")
+}
+
+// ============================================
+// ENUMS
+// ============================================
+
+// Cabang enum based on CABANG_OPTIONS labels from CabangDropdown
+// Values stored are short codes like "KPS", "CGO", "CGK", etc.
+enum Cabang {
+  KPS
+  CGO
+  CGK
+  DPS
+  SUB
+  UPG
+  KNO
+  AAP
+  AMQ
+  BDJ
+  BKS
+  BPN
+  BTH
+  BTJ
+  BWX
+  DJB
+  DJJ
+  DTB
+  FLZ
+  GNS
+  HLP
+  YIA
+  KOE
+  LBJ
+  LOP
+  MDC
+  MKQ
+  MKW
+  PDG
+  PGK
+  PKU
+  PLM
+  PNK
+  SOC
+  SRG
+  TJQ
+  TKG
+  TNJ
+  BIK
+  KJT
+}
+
+// ============================================
+// RISK ANALYSIS (Analisis Risiko)
+// ============================================
+
+model RiskAnalysis {
+  id                        Int      @id @default(autoincrement())
+  riskId                    String   @unique @map("risk_id") @db.VarChar(50)
+  
+  // Bagian 1: Kontrol yang Ada
+  existingControl           String?   @db.Text @map("existing_control")
+  controlType               String?   @map("control_type") @db.VarChar(255)
+  controlLevel              String?   @map("control_level") @db.VarChar(255)
+  controlEffectivenessAssessment String? @map("control_effectiveness_assessment") @db.VarChar(255)
+  estimatedExposureDate     DateTime? @map("estimated_exposure_date")
+  
+  // Bagian 2: Key Risk Indicator
+  keyRiskIndicator          String?   @map("key_risk_indicator") @db.Text
+  kriUnit                   String?   @map("kri_unit") @db.VarChar(255)
+  kriValueSafe              String?   @map("kri_value_safe") @db.VarChar(255)
+  kriValueCaution           String?   @map("kri_value_caution") @db.VarChar(255)
+  kriValueDanger            String?   @map("kri_value_danger") @db.VarChar(255)
+  
+  // Bagian 3: Inherent Risk
+  impactDescription         String?   @db.Text @map("impact_description")
+  impactLevel               Int?     @map("impact_level")
+  possibilityType           Int?     @map("possibility_type")
+  possibilityDescription    String?   @db.Text @map("possibility_description")
+  inherentScore             Int?     @map("inherent_score")
+  inherentLevel             String?   @map("inherent_level") @db.VarChar(50)
+  
+  // Bagian 3: Residual Risk
+  residualImpactDescription String?   @db.Text @map("residual_impact_description")
+  residualImpactLevel       Int?     @map("residual_impact_level")
+  residualPossibilityType   Int?     @map("residual_possibility_type")
+  residualPossibilityDescription String? @db.Text @map("residual_possibility_description")
+  residualScore             Int?     @map("residual_score")
+  residualLevel             String?   @map("residual_level") @db.VarChar(50)
+  
+  analyzedAt                DateTime? @map("analyzed_at")
+  createdAt                 DateTime  @default(now()) @map("created_at")
+  updatedAt                 DateTime  @updatedAt @map("updated_at")
+
+  risk  Risk  @relation(fields: [riskId], references: [id], onDelete: Cascade)
+
+  @@map("risk_analyses")
+}
+
+// ============================================
+// RISK MITIGATION (Rencana Mitigasi)
+// ============================================
+
+model RiskMitigation {
+  id                          Int      @id @default(autoincrement())
+  riskId                      String   @unique @map("risk_id") @db.VarChar(50)
+  
+  // Mitigation Plan
+  handlingType                String?   @map("handling_type") @db.VarChar(255)
+  mitigationPlan              String   @db.Text @map("mitigation_plan")
+  mitigationOutput            String?   @map("mitigation_output") @db.Text
+  mitigationBudget            Int?     @map("mitigation_budget")
+  mitigationActual            Int?     @map("mitigation_actual")
+  progressMitigation          String?   @map("progress_mitigation") @db.Text
+  realizationTarget           String?   @map("realization_target") @db.Text
+  targetKpi                   String?   @map("target_kpi") @db.Text
+  
+  inherentScore               Int?     @map("inherent_score")
+
+  // Current Risk (after mitigation) - optional override for display
+  currentImpactDescription    String?   @db.Text @map("current_impact_description")
+  currentImpactLevel          Int?     @map("current_impact_level")
+  currentProbabilityDescription String? @db.Text @map("current_probability_description")
+  currentProbabilityType      Int?     @map("current_probability_type")
+  currentScore                Int?     @map("current_score")
+  currentLevel                String?   @map("current_level") @db.VarChar(50)
+  
+  plannedAt                   DateTime? @map("planned_at")
+  createdAt                   DateTime  @default(now()) @map("created_at")
+  updatedAt                   DateTime  @updatedAt @map("updated_at")
+
+  risk  Risk  @relation(fields: [riskId], references: [id], onDelete: Cascade)
+
+  @@map("risk_mitigations")
+}
+
+// ============================================
+// RISK EVALUATION (Evaluasi Keberhasilan)
+// ============================================
+
+model RiskEvaluation {
+  id                      Int              @id @default(autoincrement())
+  riskId                  String           @map("risk_id") @db.VarChar(50)
+  userId                  Int              @map("user_id")
+  
+  // Evaluation Metadata
+  evaluationStatus        EvaluationStatus @map("evaluation_status")
+  evaluationNotes         String?          @db.Text @map("evaluation_notes")
+  evaluationDate         DateTime?        @map("evaluation_date")
+  evaluator               String?          @db.VarChar(255)
+  evaluatorNote           String?          @db.Text @map("evaluator_note")
+  lastEvaluatedAt         DateTime?        @map("last_evaluated_at")
+  
+  // Current Risk Assessment (Setelah Mitigasi) - hanya deskripsi, tidak menyimpan level/type/score
+  currentImpactDescription String?         @db.Text @map("current_impact_description")
+  currentProbabilityDescription String?    @db.Text @map("current_probability_description")
+  
+  createdAt               DateTime         @default(now()) @map("created_at")
+  updatedAt               DateTime         @updatedAt @map("updated_at")
+
+  risk  Risk  @relation(fields: [riskId], references: [id], onDelete: Cascade)
+  user  User  @relation(fields: [userId], references: [id])
+
+  @@map("risk_evaluations")
+}
+
+enum EvaluationStatus {
+  EFFECTIVE
+  NOT_EFFECTIVE
+  PARTIALLY_EFFECTIVE
+  NOT_STARTED
+}
+
+// ============================================
+// USER REGISTRATION REQUESTS
+// ============================================
+
+model UserRegistrationRequest {
+  id          Int       @id @default(autoincrement())
+  name        String    @db.VarChar(255)
+  email       String    @db.VarChar(255)
+  cabang      Cabang
+  nip         String?   @db.VarChar(50)
+  passwordHash String?  @map("password_hash") @db.VarChar(255)
+  status      RequestStatus @default(PENDING)
+  requestedAt DateTime  @default(now()) @map("requested_at")
+  processedAt DateTime? @map("processed_at")
+  processedBy Int?      @map("processed_by")
+
+  processedByUser User? @relation("ProcessedRegRequests", fields: [processedBy], references: [id])
+
+  @@map("user_registration_requests")
+}
+
+enum RequestStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+// ============================================
+// OTHER REQUESTS
+// ============================================
+
+model OtherRequest {
+  id          Int       @id @default(autoincrement())
+  userId      Int       @map("user_id")
+  type        RequestType
+  detail      String    @db.Text
+  status      RequestStatus @default(PENDING)
+  requestedAt DateTime  @default(now()) @map("requested_at")
+  processedAt DateTime? @map("processed_at")
+  processedBy Int?      @map("processed_by")
+
+  user            User  @relation("UserOtherRequests", fields: [userId], references: [id], onDelete: Cascade)
+  processedByUser User? @relation("ProcessedOtherRequests", fields: [processedBy], references: [id])
+
+  @@map("other_requests")
+}
+
+enum RequestType {
+  ADMIN_ACCESS
+  PASSWORD_RESET
+  OTHER
+}
+
+// ============================================
+// REGULATION UPDATES (Update Peraturan terbaru)
+// ============================================
+
+model RegulationUpdate {
+  id            Int       @id @default(autoincrement())
+  title         String    @db.VarChar(500)
+  category      String    @db.VarChar(255)
+  contentType   ContentType @map("content_type")
+  content       String    @db.Text // Text content or Supabase Storage URL for images
+  link          String?   @db.VarChar(500)
+  publishedAt   DateTime  @default(now()) @map("published_at")
+  createdAt     DateTime  @default(now()) @map("created_at")
+  updatedAt     DateTime  @updatedAt @map("updated_at")
+
+  @@map("regulation_updates")
+}
+
+enum ContentType {
+  TEXT
+  IMAGE
+}
