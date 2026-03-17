@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { computeRiskScore, getRiskLevel } from '../../utils/risk';
 import RiskLevelBadge from '../risk/RiskLevelBadge';
 import ControlEffectivenessDropdown from '../ui/ControlEffectivenessDropdown';
@@ -20,25 +20,27 @@ const POSSIBILITY_TYPE_OPTIONS = [
   { value: 5, label: '5 — Hampir Pasti Terjadi' },
 ];
 
-// Format date to YYYY-MM-DD for date input
-const formatDateForInput = (dateString) => {
+// Convert ISO date string to YYYY-MM (month input format)
+const formatMonthForInput = (dateString) => {
   if (!dateString) return '';
   try {
     const date = new Date(dateString);
     if (isNaN(date.getTime())) return '';
-    return date.toISOString().split('T')[0];
+    const y = date.getUTCFullYear();
+    const m = String(date.getUTCMonth() + 1).padStart(2, '0');
+    return `${y}-${m}`;
   } catch {
     return '';
   }
 };
 
-// Format date from YYYY-MM-DD to dd/mm/yyyy for display
-const formatDateForDisplay = (dateString) => {
-  if (!dateString) return '';
+// Format YYYY-MM to "Bulan Tahun" display string (e.g. "Januari 2025")
+const formatMonthDisplay = (yyyyMM) => {
+  if (!yyyyMM) return '';
   try {
-    const date = new Date(dateString + 'T00:00:00');
+    const date = new Date(yyyyMM + '-01T00:00:00');
     if (isNaN(date.getTime())) return '';
-    return date.toLocaleDateString('id-ID', { day: '2-digit', month: '2-digit', year: 'numeric' });
+    return date.toLocaleDateString('id-ID', { month: 'long', year: 'numeric' });
   } catch {
     return '';
   }
@@ -58,7 +60,8 @@ export default function RiskAnalysisForm({
   const [controlEffectivenessAssessment, setControlEffectivenessAssessment] = useState(
     risk?.controlEffectivenessAssessment || ''
   );
-  const [estimatedExposureDate, setEstimatedExposureDate] = useState(formatDateForInput(risk?.estimatedExposureDate || ''));
+  const [estimatedExposureDate, setEstimatedExposureDate] = useState(formatMonthForInput(risk?.estimatedExposureDate || ''));
+  const [estimatedExposureDateEnd, setEstimatedExposureDateEnd] = useState(formatMonthForInput(risk?.estimatedExposureDateEnd || ''));
 
   // Bagian 2: Key Risk Indicator
   const [keyRiskIndicator, setKeyRiskIndicator] = useState(risk?.keyRiskIndicator || '');
@@ -78,8 +81,6 @@ export default function RiskAnalysisForm({
   const [residualImpactLevel, setResidualImpactLevel] = useState(risk?.residualImpactLevel || 0);
   const [residualPossibilityType, setResidualPossibilityType] = useState(risk?.residualPossibilityType || 0);
   const [residualPossibilityDescription, setResidualPossibilityDescription] = useState(risk?.residualPossibilityDescription || '');
-
-  const dateInputRef = useRef(null);
 
   // Calculate scores
   const inherentScore = useMemo(() => {
@@ -118,7 +119,8 @@ export default function RiskAnalysisForm({
       controlType,
       controlLevel,
       controlEffectivenessAssessment,
-      estimatedExposureDate: estimatedExposureDate || null,
+      estimatedExposureDate: estimatedExposureDate ? estimatedExposureDate + '-01' : null,
+      estimatedExposureDateEnd: estimatedExposureDateEnd ? estimatedExposureDateEnd + '-01' : null,
       // Bagian 2: Key Risk Indicator
       keyRiskIndicator,
       kriUnit,
@@ -228,43 +230,37 @@ export default function RiskAnalysisForm({
 
           {/* Perkiraan waktu terpapar resiko */}
           <div className="flex flex-col gap-2">
-            <label htmlFor="exposure-date" className="text-sm font-semibold text-gray-700 dark:text-gray-200">
+            <label className="text-sm font-semibold text-gray-700 dark:text-gray-200">
               Perkiraan waktu terpapar resiko
             </label>
-            <div className="relative">
-              <input
-                ref={dateInputRef}
-                id="exposure-date"
-                type="date"
-                className={`${inputBase} pr-10 cursor-pointer`}
-                value={estimatedExposureDate}
-                onChange={(e) => setEstimatedExposureDate(e.target.value)}
-                onClick={(e) => {
-                  e.target.showPicker?.();
-                }}
-                onFocus={(e) => {
-                  e.target.showPicker?.();
-                }}
-                style={{
-                  colorScheme: 'light dark',
-                }}
-              />
-              <button
-                type="button"
-                onClick={() => {
-                  dateInputRef.current?.showPicker?.();
-                  dateInputRef.current?.focus();
-                }}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 cursor-pointer z-10"
-                tabIndex={-1}
-                aria-label="Buka date picker"
-              >
-                <i className="bi bi-calendar3 text-lg"></i>
-              </button>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div className="flex flex-col gap-1">
+                <span className="text-xs text-gray-500 dark:text-gray-400">Dari bulan</span>
+                <input
+                  id="exposure-date-start"
+                  type="month"
+                  className={`${inputBase} cursor-pointer`}
+                  value={estimatedExposureDate}
+                  onChange={(e) => setEstimatedExposureDate(e.target.value)}
+                  style={{ colorScheme: 'light dark' }}
+                />
+              </div>
+              <div className="flex flex-col gap-1">
+                <span className="text-xs text-gray-500 dark:text-gray-400">Sampai bulan</span>
+                <input
+                  id="exposure-date-end"
+                  type="month"
+                  className={`${inputBase} cursor-pointer`}
+                  value={estimatedExposureDateEnd}
+                  onChange={(e) => setEstimatedExposureDateEnd(e.target.value)}
+                  min={estimatedExposureDate || undefined}
+                  style={{ colorScheme: 'light dark' }}
+                />
+              </div>
             </div>
-            {estimatedExposureDate && (
+            {(estimatedExposureDate || estimatedExposureDateEnd) && (
               <p className="text-xs text-gray-500 dark:text-gray-400">
-                Dipilih: {formatDateForDisplay(estimatedExposureDate)}
+                Dipilih: {formatMonthDisplay(estimatedExposureDate) || '—'} s/d {formatMonthDisplay(estimatedExposureDateEnd) || '—'}
               </p>
             )}
           </div>

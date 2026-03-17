@@ -197,6 +197,7 @@ model RiskAnalysis {
   controlLevel              String?   @map("control_level") @db.VarChar(255)
   controlEffectivenessAssessment String? @map("control_effectiveness_assessment") @db.VarChar(255)
   estimatedExposureDate     DateTime? @map("estimated_exposure_date")
+  estimatedExposureDateEnd  DateTime? @map("estimated_exposure_date_end")
 
   // Bagian 2: Key Risk Indicator
   keyRiskIndicator          String?   @map("key_risk_indicator") @db.Text

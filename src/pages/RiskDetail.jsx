@@ -119,6 +119,7 @@ export default function RiskDetail() {
           controlLevel: payload.controlLevel,
           controlEffectivenessAssessment: payload.controlEffectivenessAssessment,
           estimatedExposureDate: payload.estimatedExposureDate,
+          estimatedExposureDateEnd: payload.estimatedExposureDateEnd,
           keyRiskIndicator: payload.keyRiskIndicator,
           kriUnit: payload.kriUnit,
           kriValueSafe: payload.kriValueSafe,
@@ -328,15 +329,15 @@ export default function RiskDetail() {
         );
 
       case 'analysis': {
-        // Format date for display
-        const formatDateDisplay = (dateString) => {
-          if (!dateString) return 'N/A';
+        // Format ISO date string to "Bulan Tahun" (e.g. "Januari 2025")
+        const formatMonthDisplay = (dateString) => {
+          if (!dateString) return null;
           try {
             const date = new Date(dateString);
-            if (isNaN(date.getTime())) return 'N/A';
-            return date.toLocaleDateString('id-ID', { day: '2-digit', month: '2-digit', year: 'numeric' });
+            if (isNaN(date.getTime())) return null;
+            return date.toLocaleDateString('id-ID', { month: 'long', year: 'numeric' });
           } catch {
-            return 'N/A';
+            return null;
           }
         };
 
@@ -389,7 +390,9 @@ export default function RiskDetail() {
                 <div>
                   <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-1">Perkiraan waktu terpapar resiko</label>
                   <p className="text-sm text-gray-900 dark:text-white">
-                    {formatDateDisplay(risk.estimatedExposureDate)}
+                    {formatMonthDisplay(risk.estimatedExposureDate) && formatMonthDisplay(risk.estimatedExposureDateEnd)
+                      ? `${formatMonthDisplay(risk.estimatedExposureDate)} s/d ${formatMonthDisplay(risk.estimatedExposureDateEnd)}`
+                      : formatMonthDisplay(risk.estimatedExposureDate) || 'N/A'}
                   </p>
                 </div>
               </div>

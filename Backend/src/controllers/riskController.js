@@ -1,6 +1,6 @@
 import { prisma } from '../lib/prisma.js';
 import { clearCacheByPattern, deleteCache, getCache, setCache } from '../utils/cache.js';
-import { generateRiskId, getRiskLevel } from '../utils/risk.js';
+import { computeRiskScore, generateRiskId, getRiskLevel } from '../utils/risk.js';
 import { deriveApprovalStatus } from './approvalController.js';
 
 /**
@@ -285,6 +285,7 @@ export const riskController = {
             controlLevel: risk.analysis.controlLevel,
             controlEffectivenessAssessment: risk.analysis.controlEffectivenessAssessment,
             estimatedExposureDate: risk.analysis.estimatedExposureDate?.toISOString(),
+            estimatedExposureDateEnd: risk.analysis.estimatedExposureDateEnd?.toISOString(),
             keyRiskIndicator: risk.analysis.keyRiskIndicator,
             kriUnit: risk.analysis.kriUnit,
             kriValueSafe: risk.analysis.kriValueSafe,
@@ -541,6 +542,7 @@ export const riskController = {
           controlLevel: risk.analysis.controlLevel,
           controlEffectivenessAssessment: risk.analysis.controlEffectivenessAssessment,
           estimatedExposureDate: risk.analysis.estimatedExposureDate?.toISOString(),
+          estimatedExposureDateEnd: risk.analysis.estimatedExposureDateEnd?.toISOString(),
           keyRiskIndicator: risk.analysis.keyRiskIndicator,
           kriUnit: risk.analysis.kriUnit,
           kriValueSafe: risk.analysis.kriValueSafe,
@@ -670,7 +672,7 @@ export const riskController = {
       // Check if analysis data (Bagian 1 / Bagian 2) was submitted alongside the risk
       const analysisFields = [
         'existingControl', 'controlType', 'controlLevel',
-        'controlEffectivenessAssessment', 'estimatedExposureDate',
+        'controlEffectivenessAssessment', 'estimatedExposureDate', 'estimatedExposureDateEnd',
         'keyRiskIndicator', 'kriUnit', 'kriValueSafe', 'kriValueCaution', 'kriValueDanger',
       ];
       const hasAnalysisData = analysisFields.some(
@@ -706,6 +708,7 @@ export const riskController = {
               controlLevel: body.controlLevel || null,
               controlEffectivenessAssessment: body.controlEffectivenessAssessment || null,
               estimatedExposureDate: body.estimatedExposureDate ? new Date(body.estimatedExposureDate) : null,
+              estimatedExposureDateEnd: body.estimatedExposureDateEnd ? new Date(body.estimatedExposureDateEnd) : null,
               keyRiskIndicator: body.keyRiskIndicator || null,
               kriUnit: body.kriUnit || null,
               kriValueSafe: body.kriValueSafe || null,
@@ -970,6 +973,7 @@ export const riskController = {
         controlLevel,
         controlEffectivenessAssessment,
         estimatedExposureDate,
+        estimatedExposureDateEnd,
         keyRiskIndicator,
         kriUnit,
         kriValueSafe,
@@ -985,16 +989,15 @@ export const riskController = {
         residualPossibilityDescription,
       } = body;
 
-      // Server-side score calculation — never trust values sent by the client.
-      // Score = impactLevel × possibilityType (integer multiplication).
+      // Server-side score calculation using the same non-linear matrix as the frontend RiskMatrix.
       const parsedImpact = impactLevel !== undefined && impactLevel !== null ? Number(impactLevel) : null;
       const parsedPossibility = possibilityType !== undefined && possibilityType !== null ? Number(possibilityType) : null;
-      const inherentScore = (parsedImpact && parsedPossibility) ? parsedImpact * parsedPossibility : null;
+      const inherentScore = (parsedImpact && parsedPossibility) ? computeRiskScore({ possibility: parsedPossibility, impactLevel: parsedImpact }) : null;
       const inherentLevel = inherentScore ? getRiskLevel(inherentScore)?.label ?? null : null;
 
       const parsedResidualImpact = residualImpactLevel !== undefined && residualImpactLevel !== null ? Number(residualImpactLevel) : null;
       const parsedResidualPossibility = residualPossibilityType !== undefined && residualPossibilityType !== null ? Number(residualPossibilityType) : null;
-      const residualScore = (parsedResidualImpact && parsedResidualPossibility) ? parsedResidualImpact * parsedResidualPossibility : null;
+      const residualScore = (parsedResidualImpact && parsedResidualPossibility) ? computeRiskScore({ possibility: parsedResidualPossibility, impactLevel: parsedResidualImpact }) : null;
       const residualLevel = residualScore ? getRiskLevel(residualScore)?.label ?? null : null;
 
       // Upsert analysis
@@ -1006,6 +1009,7 @@ export const riskController = {
           controlLevel: controlLevel !== undefined && controlLevel !== '' ? controlLevel : null,
           controlEffectivenessAssessment: controlEffectivenessAssessment !== undefined && controlEffectivenessAssessment !== '' ? controlEffectivenessAssessment : null,
           estimatedExposureDate: estimatedExposureDate ? new Date(estimatedExposureDate) : null,
+          estimatedExposureDateEnd: estimatedExposureDateEnd ? new Date(estimatedExposureDateEnd) : null,
           keyRiskIndicator: keyRiskIndicator || null,
           kriUnit: kriUnit || null,
           kriValueSafe: kriValueSafe || null,
@@ -1032,6 +1036,7 @@ export const riskController = {
           controlLevel: controlLevel !== undefined && controlLevel !== '' ? controlLevel : null,
           controlEffectivenessAssessment: controlEffectivenessAssessment !== undefined && controlEffectivenessAssessment !== '' ? controlEffectivenessAssessment : null,
           estimatedExposureDate: estimatedExposureDate ? new Date(estimatedExposureDate) : null,
+          estimatedExposureDateEnd: estimatedExposureDateEnd ? new Date(estimatedExposureDateEnd) : null,
           keyRiskIndicator: keyRiskIndicator || null,
           kriUnit: kriUnit || null,
           kriValueSafe: kriValueSafe || null,

@@ -8,25 +8,37 @@ export function generateRiskId() {
   return `RISK-${dateStr}-${random}`;
 }
 
+// Same non-linear matrix used by the frontend RiskMatrix component
+// P = Possibility (1-5), I = Impact (1-5)
+const RISK_SCORE_MATRIX = {
+  1: { 1: 1,  2: 5,  3: 10, 4: 15, 5: 20 },
+  2: { 1: 2,  2: 6,  3: 11, 4: 16, 5: 21 },
+  3: { 1: 3,  2: 8,  3: 13, 4: 18, 5: 23 },
+  4: { 1: 4,  2: 9,  3: 14, 4: 19, 5: 24 },
+  5: { 1: 7,  2: 12, 3: 17, 4: 22, 5: 25 },
+};
+
 /**
- * Compute risk score from possibility and impact
+ * Compute risk score using the same matrix as the frontend RiskMatrix component.
  */
 export function computeRiskScore({ possibility, impactLevel }) {
-  const p = Number(possibility) || 0;
-  const i = Number(impactLevel) || 0;
-  return p * i;
+  const p = Math.min(5, Math.max(1, Math.round(Number(possibility) || 0)));
+  const i = Math.min(5, Math.max(1, Math.round(Number(impactLevel) || 0)));
+  if (!possibility || !impactLevel) return null;
+  return RISK_SCORE_MATRIX[p]?.[i] ?? null;
 }
 
 /**
- * Get risk level label from score
+ * Get risk level label from score — matches frontend RISK_LEVELS thresholds.
  */
 export function getRiskLevel(score) {
-  const s = Number(score) || 0;
-  if (s <= 5) return { label: 'Sangat Rendah', level: 1 };
-  if (s <= 10) return { label: 'Rendah', level: 2 };
-  if (s <= 15) return { label: 'Menengah', level: 3 };
-  if (s <= 20) return { label: 'Menengah-Tinggi', level: 4 };
-  return { label: 'Tinggi', level: 5 };
+  const s = Number(score);
+  if (!Number.isFinite(s) || s <= 0) return null;
+  if (s <= 5)  return { label: 'Sangat Rendah' };
+  if (s <= 11) return { label: 'Rendah' };
+  if (s <= 15) return { label: 'Menengah' };
+  if (s <= 19) return { label: 'Menengah-Tinggi' };
+  return { label: 'Tinggi' };
 }
 
 /**

@@ -31,6 +31,7 @@ export default function InherentRiskEvaluation() {
         controlLevel: payload.controlLevel,
         controlEffectivenessAssessment: payload.controlEffectivenessAssessment,
         estimatedExposureDate: payload.estimatedExposureDate,
+        estimatedExposureDateEnd: payload.estimatedExposureDateEnd,
         keyRiskIndicator: payload.keyRiskIndicator,
         kriUnit: payload.kriUnit,
         kriValueSafe: payload.kriValueSafe,

@@ -67,16 +67,16 @@ export const measurementController = {
         );
       }
 
-      // Server-side score calculation — never trust client-sent score values.
+      // Server-side score calculation using the same non-linear matrix as the frontend RiskMatrix.
       const parsedImpact = Number(impactLevel);
       const parsedPossibility = Number(possibilityType);
-      const computedInherentScore = (parsedImpact && parsedPossibility) ? parsedImpact * parsedPossibility : null;
+      const computedInherentScore = computeRiskScore({ possibility: parsedPossibility, impactLevel: parsedImpact });
       const computedInherentLevel = computedInherentScore ? getRiskLevel(computedInherentScore)?.label || null : null;
 
       const parsedResidualImpact = residualImpactLevel ? Number(residualImpactLevel) : null;
       const parsedResidualPossibility = residualPossibilityType ? Number(residualPossibilityType) : null;
       const computedResidualScore = (parsedResidualImpact && parsedResidualPossibility)
-        ? parsedResidualImpact * parsedResidualPossibility
+        ? computeRiskScore({ possibility: parsedResidualPossibility, impactLevel: parsedResidualImpact })
         : null;
       const computedResidualLevel = computedResidualScore ? getRiskLevel(computedResidualScore)?.label || null : null;
 
