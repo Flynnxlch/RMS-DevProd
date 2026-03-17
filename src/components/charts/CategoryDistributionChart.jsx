@@ -4,7 +4,7 @@ import { useEffect, useRef } from 'react';
 const CATEGORY_COLORS = [
   '#0d6efd', '#20c997', '#ffc107', '#d63384', '#6f42c1',
   '#adb5bd', '#dc3545', '#0dcaf0', '#fd7e14', '#198754',
-  '#6c757d', '#e83e8c', '#0dcaf0', '#17a2b8', '#343a40',
+  '#6c757d', '#e83e8c', '#17a2b8', '#343a40', '#f8f9fa',
 ];
 
 export default function CategoryDistributionChart({ data = [], height = 220 }) {
@@ -27,25 +27,36 @@ export default function CategoryDistributionChart({ data = [], height = 220 }) {
     const colors = data.map((_, i) => CATEGORY_COLORS[i % CATEGORY_COLORS.length]);
 
     chartRef.current = new Chart(ctx, {
-      type: 'bar',
+      type: 'doughnut',
       data: {
         labels,
         datasets: [
           {
             data: counts,
             backgroundColor: colors,
-            borderRadius: 4,
-            borderWidth: 0,
+            borderWidth: 2,
+            borderColor: 'transparent',
+            hoverOffset: 6,
           },
         ],
       },
       options: {
-        indexAxis: 'y',
         responsive: true,
         maintainAspectRatio: false,
+        cutout: '62%',
         animation: { duration: 450 },
         plugins: {
-          legend: { display: false },
+          legend: {
+            display: true,
+            position: 'bottom',
+            labels: {
+              color: '#6c757d',
+              font: { size: 11 },
+              padding: 10,
+              boxWidth: 12,
+              boxHeight: 12,
+            },
+          },
           tooltip: {
             backgroundColor: 'rgba(33, 37, 41, 0.92)',
             padding: 10,
@@ -53,20 +64,6 @@ export default function CategoryDistributionChart({ data = [], height = 220 }) {
             callbacks: {
               label: (item) => ` ${item.raw} risiko`,
             },
-          },
-        },
-        scales: {
-          x: {
-            beginAtZero: true,
-            ticks: { color: '#6c757d', precision: 0 },
-            grid: { color: 'rgba(0,0,0,0.08)' },
-          },
-          y: {
-            ticks: {
-              color: '#6c757d',
-              font: { size: 11 },
-            },
-            grid: { display: false },
           },
         },
       },

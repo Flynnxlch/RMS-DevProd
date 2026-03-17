@@ -4,6 +4,7 @@ import RiskLevelBadge from '../risk/RiskLevelBadge';
 import ControlEffectivenessDropdown from '../ui/ControlEffectivenessDropdown';
 import ControlLevelDropdown from '../ui/ControlLevelDropdown';
 import ControlTypeDropdown from '../ui/ControlTypeDropdown';
+import MonthPickerDropdown from '../ui/MonthPickerDropdown';
 const IMPACT_LEVEL_OPTIONS = [
   { value: 1, label: '1 — Rendah' },
   { value: 2, label: '2 — Rendah - Menengah' },
@@ -236,25 +237,21 @@ export default function RiskAnalysisForm({
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div className="flex flex-col gap-1">
                 <span className="text-xs text-gray-500 dark:text-gray-400">Dari bulan</span>
-                <input
+                <MonthPickerDropdown
                   id="exposure-date-start"
-                  type="month"
-                  className={`${inputBase} cursor-pointer`}
                   value={estimatedExposureDate}
-                  onChange={(e) => setEstimatedExposureDate(e.target.value)}
-                  style={{ colorScheme: 'light dark' }}
+                  onChange={setEstimatedExposureDate}
+                  placeholder="Pilih bulan mulai"
                 />
               </div>
               <div className="flex flex-col gap-1">
                 <span className="text-xs text-gray-500 dark:text-gray-400">Sampai bulan</span>
-                <input
+                <MonthPickerDropdown
                   id="exposure-date-end"
-                  type="month"
-                  className={`${inputBase} cursor-pointer`}
                   value={estimatedExposureDateEnd}
-                  onChange={(e) => setEstimatedExposureDateEnd(e.target.value)}
+                  onChange={setEstimatedExposureDateEnd}
                   min={estimatedExposureDate || undefined}
-                  style={{ colorScheme: 'light dark' }}
+                  placeholder="Pilih bulan akhir"
                 />
               </div>
             </div>

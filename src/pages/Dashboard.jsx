@@ -326,7 +326,7 @@ export default function Dashboard() {
             {summary.total > 0 && categorySummary.length > 0 ? (
               <CategoryDistributionChart
                 data={categorySummary}
-                height={Math.max(220, categorySummary.length * 36)}
+                height={Math.max(240, 180 + categorySummary.length * 18)}
               />
             ) : (
               <div className="flex items-center justify-center min-h-[200px] text-sm text-gray-400 dark:text-gray-500">Belum ada risiko.</div>
