@@ -113,26 +113,9 @@ export default function RiskCard({
                 return null;
               }
               
-              // Determine which score to show based on status
-              let displayScore = 0;
-              let labelText = 'Tingkat Risiko';
-              
-              if (riskStatus === 'analyzed') {
-                // After Risk Analysis: show Inherent Risk
-                displayScore = Number(risk.inherentScore ?? risk.score ?? 0);
-                labelText = 'Tingkat Risiko Inheren';
-              } else if (['planned', 'mitigated', 'not-finished'].includes(riskStatus)) {
-                // After Mitigation Plan: show Current Risk (Residual)
-                // But hide if hideResidualRiskLevel is true
-                if (hideResidualRiskLevel) {
-                  return null;
-                }
-                displayScore = Number(risk.currentScore ?? risk.residualScore ?? risk.residualScoreFinal ?? 0);
-                labelText = 'Tingkat Risiko Terkini';
-              } else {
-                // Fallback to score
-                displayScore = Number(risk.score ?? 0);
-              }
+              // risk.score from backend already has right priority: currentScore > measurement.inherentScore > analysis.inherentScore
+              const displayScore = Number(risk.score ?? 0);
+              const labelText = 'Tingkat Risiko';
               
               if (!displayScore || displayScore <= 0) {
                 return null;
@@ -170,20 +153,7 @@ export default function RiskCard({
           {/* Badge container - can expand based on label length */}
           {/* Only show badge if score exists, is > 0, and status is not open-risk */}
           {showRiskLevel && riskStatus !== 'open-risk' && (() => {
-            // Determine which score to show based on status
-            let badgeScore = 0;
-            
-            if (riskStatus === 'analyzed') {
-              // After Risk Analysis: show Inherent Risk
-              badgeScore = Number(risk.inherentScore ?? risk.score ?? 0);
-            } else if (['planned', 'mitigated', 'not-finished'].includes(riskStatus)) {
-              // After Mitigation Plan: show Current Risk (Residual)
-              badgeScore = Number(risk.currentScore ?? risk.residualScore ?? risk.residualScoreFinal ?? 0);
-            } else {
-              // Fallback to score
-              badgeScore = Number(risk.score ?? 0);
-            }
-            
+            const badgeScore = Number(risk.score ?? 0);
             if (!badgeScore || isNaN(badgeScore) || badgeScore <= 0) return null;
             return (
               <div className="flex justify-end">
@@ -194,20 +164,7 @@ export default function RiskCard({
           {/* Score bar container - fixed width, separate from badge */}
           {/* Only show score bar if score exists, is > 0, and status is not open-risk */}
           {showScoreBar && riskStatus !== 'open-risk' && (() => {
-            // Determine which score to show based on status
-            let barScore = 0;
-            
-            if (riskStatus === 'analyzed') {
-              // After Risk Analysis: show Inherent Risk
-              barScore = Number(risk.inherentScore ?? risk.score ?? 0);
-            } else if (['planned', 'mitigated', 'not-finished'].includes(riskStatus)) {
-              // After Mitigation Plan: show Current Risk (Residual)
-              barScore = Number(risk.currentScore ?? risk.residualScore ?? risk.residualScoreFinal ?? 0);
-            } else {
-              // Fallback to score
-              barScore = Number(risk.score ?? 0);
-            }
-            
+            const barScore = Number(risk.score ?? 0);
             if (!barScore || isNaN(barScore) || barScore <= 0) return null;
             return (
               <div className="w-24 shrink-0">
@@ -241,7 +198,7 @@ export default function RiskCard({
               <span className="hidden sm:inline">Analyze</span>
             </Link>
           )}
-          {showEvaluateButton && (riskStatus === 'analyzed' || riskStatus === 'not-finished') && (
+          {showEvaluateButton && (riskStatus === 'mitigate' || riskStatus === 'need-improvement') && (
             <Link
               to={`/risks/${risk.id}/mitigation-plan`}
               onClick={(e) => e.stopPropagation()}

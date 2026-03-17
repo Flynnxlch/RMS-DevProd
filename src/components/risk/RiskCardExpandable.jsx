@@ -46,7 +46,7 @@ export default function RiskCardExpandable({
   const riskEventText = truncateText(riskEventValue, riskEventMaxLength);
 
   // Determine which sections to show based on status
-  const hasAnalysis = ['analyzed', 'planned', 'monitor', 'mitigate', 'need-improvement'].includes(riskStatus);
+  const hasAnalysis = ['planned', 'monitor', 'mitigate', 'need-improvement'].includes(riskStatus);
   const hasPlanning = ['planned', 'monitor', 'mitigate', 'need-improvement'].includes(riskStatus);
   const hasEvaluation = ['monitor', 'mitigate', 'need-improvement'].includes(riskStatus);
 
@@ -109,21 +109,9 @@ export default function RiskCardExpandable({
                 }
                 
                 // Determine which score to show based on status
-                let displayScore = 0;
-                let labelText = 'Risk Level';
-                
-                if (riskStatus === 'analyzed') {
-                  // After Risk Analysis: show Inherent Risk
-                  displayScore = Number(risk.inherentScore ?? risk.score ?? 0);
-                  labelText = 'Tingkat Risiko Inheren';
-                } else if (['planned', 'monitor', 'mitigate', 'need-improvement'].includes(riskStatus)) {
-                  // After Mitigation Plan: show Current Risk (Residual)
-                  displayScore = Number(risk.currentScore ?? risk.residualScore ?? risk.residualScoreFinal ?? 0);
-                  labelText = 'Tingkat Risiko Residual';
-                } else {
-                  // Fallback to score
-                  displayScore = Number(risk.score ?? 0);
-                }
+                // risk.score from backend already has the right priority: currentScore > measurement.inherentScore > analysis.inherentScore
+                const displayScore = Number(risk.score ?? 0);
+                const labelText = 'Tingkat Risiko';
                 
                 if (!displayScore || displayScore <= 0) {
                   return null;
@@ -160,20 +148,7 @@ export default function RiskCardExpandable({
             {/* Badge container - can expand based on label length */}
             {/* Only show badge if score exists, is > 0, and status is not risiko-baru */}
             {showRiskLevel && riskStatus !== 'risiko-baru' && (() => {
-              // Determine which score to show based on status
-              let badgeScore = 0;
-
-              if (riskStatus === 'analyzed') {
-                // After Risk Analysis: show Inherent Risk
-                badgeScore = Number(risk.inherentScore ?? risk.score ?? 0);
-              } else if (['planned', 'monitor', 'mitigate', 'need-improvement'].includes(riskStatus)) {
-                // After Mitigation Plan: show Current Risk (Residual)
-                badgeScore = Number(risk.currentScore ?? risk.residualScore ?? risk.residualScoreFinal ?? 0);
-              } else {
-                // Fallback to score
-                badgeScore = Number(risk.score ?? 0);
-              }
-              
+              const badgeScore = Number(risk.score ?? 0);
               if (!badgeScore || isNaN(badgeScore) || badgeScore <= 0) return null;
               return (
                 <div className="flex justify-end">
@@ -184,20 +159,7 @@ export default function RiskCardExpandable({
             {/* Score bar container - fixed width, separate from badge */}
             {/* Only show score bar if score exists, is > 0, and status is not open-risk */}
             {showScoreBar && riskStatus !== 'risiko-baru' && (() => {
-              // Determine which score to show based on status
-              let barScore = 0;
-
-              if (riskStatus === 'analyzed') {
-                // After Risk Analysis: show Inherent Risk
-                barScore = Number(risk.inherentScore ?? risk.score ?? 0);
-              } else if (['planned', 'monitor', 'mitigate', 'need-improvement'].includes(riskStatus)) {
-                // After Mitigation Plan: show Current Risk (Residual)
-                barScore = Number(risk.currentScore ?? risk.residualScore ?? risk.residualScoreFinal ?? 0);
-              } else {
-                // Fallback to score
-                barScore = Number(risk.score ?? 0);
-              }
-              
+              const barScore = Number(risk.score ?? 0);
               if (!barScore || isNaN(barScore) || barScore <= 0) return null;
               return (
                 <div className="w-28 shrink-0">
@@ -234,7 +196,7 @@ export default function RiskCardExpandable({
                 <span className="hidden sm:inline">Analyze</span>
               </Link>
             )}
-            {showActionButtons && (riskStatus === 'analyzed' || riskStatus === 'planned' || riskStatus === 'need-improvement') && !risk.evaluationRequested && (user?.userRole === 'RISK_OFFICER' || user?.userRole === 'RISK_CHAMPION') && (
+            {showActionButtons && (riskStatus === 'mitigate' || riskStatus === 'planned' || riskStatus === 'need-improvement') && !risk.evaluationRequested && (user?.userRole === 'RISK_OFFICER' || user?.userRole === 'RISK_CHAMPION') && (
               <Link
                 to={`/risks/${risk.id}/mitigation-plan`}
                 onClick={(e) => e.stopPropagation()}

@@ -113,7 +113,7 @@ export default function MonthlyEvaluationForm() {
                   Analisis Risiko
                 </button>
               )}
-              {(riskStatus === 'analyzed' || riskStatus === 'not-finished') && (
+              {(riskStatus === 'mitigate' || riskStatus === 'need-improvement') && (
                 <button
                   type="button"
                   onClick={() => navigate(`/risks/${risk.id}/mitigation-plan`)}

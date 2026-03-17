@@ -2,61 +2,48 @@
  * Calculate risk status based on risk data
  *
  * Status flow:
- * - "Risiko Baru"        — score is 0/null (not analyzed yet)
- * - "Identifikasi Ulang" — risk was rejected by an approver (risk.approvalStatus === 'rejected')
- * - "Perlu Pengukuran"   — risk was approved by all required approvers (risk.approvalStatus === 'approved')
- * - "Analyzed"           — risk analysis is completed (has score > 0, no mitigation plan)
- * - "Planned"            — mitigation plan created (has mitigationPlan, no evaluation)
- * - "Monitor"            — evaluation effective AND currentScore is Low or Low-to-Moderate (≤ 11)
- * - "Mitigate"           — evaluation effective AND currentScore is Moderate or higher (≥ 12)
+ * - "Risiko Baru"        — not yet approved (no measurement)
+ * - "Identifikasi Ulang" — risk was rejected by an approver
+ * - "Perlu Pengukuran"   — risk was approved, awaiting Risk Assessment measurement
+ * - "Planned"            — Risk Officer/Champion has submitted mitigation plan (awaiting RA review)
+ * - "Monitor"            — currentScore set by RA review is low (1–5), or treatmentOption is Accept/Monitor
+ * - "Mitigate"           — after measurement with non-accept treatmentOption, or RA review score > 5
  * - "Need Improvement"   — evaluation completed but not effective
  */
 export function getRiskStatus(risk) {
   if (!risk) return 'risiko-baru';
 
-  const score = risk.score || 0;
-  const hasMitigationPlan = (risk.mitigationPlan || risk.mitigation || '').trim().length > 0;
-  const evaluationStatus = risk.evaluationStatus;
+  const hasMeasurement = !!(risk.hasMeasurement || risk.measurement);
+  const hasMitigationPlan = !!(risk.mitigationPlan && risk.mitigationPlan.trim().length > 0);
+  const currentScore = Number(risk.currentScore ?? 0);
 
-  // Risiko Baru / approval sub-states: score is 0/null (not yet measured)
-  if (score <= 0) {
+  // Phase 1: No measurement yet → check approval state
+  if (!hasMeasurement) {
     if (risk.approvalStatus === 'rejected') return 'identifikasi-ulang';
     if (risk.approvalStatus === 'approved') return 'perlu-pengukuran';
     return 'risiko-baru';
   }
 
-  // Phase 5 measurement path: if risk has a measurement record, skip to monitor/mitigate directly
-  if (risk.hasMeasurement || risk.measurement) {
-    // Low (1–11) → Monitor, Moderate to High / High (12+) → Mitigate
-    if (score <= 11) return 'monitor';
+  // Phase 2: Has measurement AND Risk Assessment has set a currentScore (post-mitigation review)
+  // currentScore 1–5 (low risk) → mitigasi berhasil → Monitor
+  // currentScore > 5 → still needs mitigation → Mitigate
+  if (currentScore > 0) {
+    if (currentScore <= 5) return 'monitor';
     return 'mitigate';
   }
 
-  // If has evaluation status, determine Monitor / Mitigate / Need Improvement
-  if (evaluationStatus) {
-    if (evaluationStatus === 'effective') {
-      // Determine Monitor vs Mitigate based on current (residual) score after mitigation
-      const currentScore = Number(
-        risk.currentScore ?? risk.residualScore ?? risk.residualScoreFinal ?? 0
-      );
-      // Low (1–5) or Low-to-Moderate (6–11) → Monitor
-      if (currentScore > 0 && currentScore <= 11) {
-        return 'monitor';
-      }
-      // Moderate (12–15), Moderate-to-High (16–19), High (20+) → Mitigate
-      return 'mitigate';
-    } else {
-      return 'need-improvement';
-    }
-  }
-
-  // Planned: has mitigation plan but no evaluation yet
+  // Phase 3: Has measurement, no currentScore → check if mitigation plan has been submitted
   if (hasMitigationPlan) {
     return 'planned';
   }
 
-  // Analyzed: has score but no mitigation plan
-  return 'analyzed';
+  // Phase 4: Has measurement, no mitigation plan yet → determine from treatmentOption
+  const treatmentOption = (risk.measurement?.treatmentOption || '').toLowerCase();
+  if (treatmentOption.includes('accept') || treatmentOption.includes('monitor')) {
+    return 'monitor';
+  }
+  // Reduce/Mitigate, Transfer/Sharing, Avoid/Hindari → needs mitigation plan
+  return 'mitigate';
 }
 
 /** Canonical status order for dropdowns, filters, and badge renders */
@@ -64,7 +51,6 @@ export const RISK_STATUS_ORDER = [
   'risiko-baru',
   'identifikasi-ulang',
   'perlu-pengukuran',
-  'analyzed',
   'planned',
   'monitor',
   'mitigate',
@@ -89,12 +75,6 @@ export const RISK_STATUS_CONFIG = {
     badgeClass:
       'bg-purple-100 text-purple-800 ring-1 ring-inset ring-purple-200 dark:bg-purple-900/30 dark:text-purple-300',
     description: 'Risiko disetujui, menunggu pengukuran',
-  },
-  analyzed: {
-    label: 'Analyzed',
-    badgeClass:
-      'bg-blue-100 text-blue-800 ring-1 ring-inset ring-blue-200 dark:bg-blue-900/30 dark:text-blue-300',
-    description: 'Analisis risiko selesai',
   },
   planned: {
     label: 'Planned',

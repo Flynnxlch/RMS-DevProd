@@ -91,22 +91,21 @@ export function RiskProvider({ children }) {
       
       // Build URL with sorting and pagination parameters
       // limit=500 covers most organisations; increase if needed
-      const url = new URL(API_ENDPOINTS.risks.getAll);
+      const url = new URL(API_ENDPOINTS.risks.getAll, window.location.origin);
       url.searchParams.set('sortBy', sortBy);
       url.searchParams.set('limit', '500');
       
-      // Add refresh parameter to bypass cache when forceRefresh is true
-      // Also add timestamp for cache-busting to ensure browser doesn't cache the request
+      // When forceRefresh=true, tell the server to bypass its cache and return fresh data
       if (forceRefresh) {
         url.searchParams.set('refresh', 'true');
-        url.searchParams.set('_t', Date.now().toString()); // Cache-busting timestamp
       }
-      
+      // Always add a timestamp so the browser never serves a cached response
+      url.searchParams.set('_t', Date.now().toString());
+
       const data = await apiRequest(url.toString(), {
         method: 'GET',
         signal: controller.signal,
-        // Add cache control headers to prevent browser caching when force refresh
-        cache: forceRefresh ? 'no-store' : 'default',
+        cache: 'no-store', // Always bypass browser cache — server-side cache handles performance
       });
       
       clearTimeout(timeoutId);
@@ -216,36 +215,46 @@ export function RiskProvider({ children }) {
           if (!riskData.id) {
             throw new Error('Risk ID is required for update');
           }
-          
+
+          // Optimistic update: reflect change in UI immediately
+          dispatch({ type: 'update', payload: riskData });
+
           await apiRequest(API_ENDPOINTS.risks.update(riskData.id), {
             method: 'PUT',
             body: JSON.stringify(riskData),
             signal: controller.signal,
           });
-          
-          // Refresh risks from API immediately after update
+
+          // Sync with server to get canonical data (scores, derived fields, etc.)
           await fetchRisks(true, 'highest-risk');
         } catch (err) {
           if (err.name === 'AbortError') {
             return; // Request was cancelled
           }
+          // On error, re-fetch to restore correct state
+          await fetchRisks(true, 'highest-risk');
           throw err;
         }
       },
       removeRisk: async (riskId) => {
         const controller = new AbortController();
         try {
+          // Optimistic removal: remove from UI instantly before API responds
+          dispatch({ type: 'remove', payload: riskId });
+
           await apiRequest(API_ENDPOINTS.risks.delete(riskId), {
             method: 'DELETE',
             signal: controller.signal,
           });
-          
-          // Refresh risks from API immediately after delete
+
+          // Sync with server to confirm deletion and refresh totals
           await fetchRisks(true, 'highest-risk');
         } catch (err) {
           if (err.name === 'AbortError') {
             return; // Request was cancelled
           }
+          // On error, re-fetch to restore correct state
+          await fetchRisks(true, 'highest-risk');
           throw err;
         }
       },

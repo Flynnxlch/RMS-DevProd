@@ -88,7 +88,9 @@ export const riskController = {
             status: 200,
             headers: {
               'Content-Type': 'application/json',
-              'Cache-Control': 'private, max-age=120', // 2 minutes browser cache
+              'Cache-Control': 'no-cache, no-store, must-revalidate',
+              'Pragma': 'no-cache',
+              'Expires': '0',
             },
           });
         }
@@ -370,23 +372,15 @@ export const riskController = {
         console.log(`[Cache] Fresh data fetched and cached for key: ${cacheKey}`);
       }
 
-      // Set cache-control headers based on refresh parameter
-      // If force refresh, prevent browser caching; otherwise allow caching
-      const cacheHeaders = forceRefresh
-        ? {
-            'Cache-Control': 'no-cache, no-store, must-revalidate',
-            'Pragma': 'no-cache',
-            'Expires': '0',
-          }
-        : {
-            'Cache-Control': 'private, max-age=120', // 2 minutes browser cache
-          };
-
       return new Response(JSON.stringify(responseData), {
         status: 200,
         headers: {
           'Content-Type': 'application/json',
-          ...cacheHeaders,
+          // No browser caching — server-side in-memory cache handles performance.
+          // Browser caching caused stale data after delete/update operations.
+          'Cache-Control': 'no-cache, no-store, must-revalidate',
+          'Pragma': 'no-cache',
+          'Expires': '0',
         },
       });
     } catch (error) {
@@ -826,13 +820,13 @@ export const riskController = {
         updateData.evaluationRequestedAt = body.evaluationRequestedAt ? new Date(body.evaluationRequestedAt) : null;
       }
 
-      // Clear cache when risk is updated
-      clearCacheByPattern('risks:');
-
       const risk = await prisma.risk.update({
         where: { id: riskId },
         data: updateData,
       });
+
+      // Clear cache AFTER the update so stale data is never re-served
+      clearCacheByPattern('risks:');
 
       return new Response(
         JSON.stringify({

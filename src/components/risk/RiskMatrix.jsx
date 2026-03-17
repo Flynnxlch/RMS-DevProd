@@ -1,5 +1,4 @@
 import { useMemo } from 'react';
-import { useTheme } from '../../context/ThemeContext';
 import { computeRiskScore, getRiskLevel } from '../../utils/risk';
 
 const POSSIBILITY_LABELS = {
@@ -35,8 +34,6 @@ function findImpactPossibilityFromScore(score) {
 }
 
 export default function RiskMatrix({ risks = [], onCellClick }) {
-  const { isDark } = useTheme();
-
   const matrix = useMemo(() => {
     const grid = Array(5).fill(null).map(() => Array(5).fill(0));
 
@@ -103,11 +100,8 @@ export default function RiskMatrix({ risks = [], onCellClick }) {
                 const level = getRiskLevel(score);
                 const isLastCell = iIdx === impactOrder.length - 1;
 
-                // Empty cell → solid legend color (same in light and dark)
-                // Occupied cell → neutral background (color stripped)
-                const cellStyle = count === 0
-                  ? { backgroundColor: level?.mapColor ?? '#6b7280' }
-                  : { backgroundColor: isDark ? 'rgba(30,41,59,0.6)' : 'rgba(243,244,246,0.9)' };
+                // Always use the risk level color regardless of count
+                const cellStyle = { backgroundColor: level?.mapColor ?? '#6b7280' };
 
                 return (
                   <div
@@ -118,13 +112,7 @@ export default function RiskMatrix({ risks = [], onCellClick }) {
                     title={`Kemungkinan: ${possibility} (${POSSIBILITY_LABELS[possibility]}), Dampak: ${impact} (${IMPACT_LABELS[impact]}), Score: ${score}${level ? ` (${level.label})` : ''}, Risiko: ${count}`}
                   >
                     {/* Score number */}
-                    <span
-                      className={`text-xs font-bold ${
-                        count > 0
-                          ? 'text-gray-600 dark:text-gray-300'
-                          : 'text-white drop-shadow-[0_1px_2px_rgba(0,0,0,0.5)]'
-                      }`}
-                    >
+                    <span className="text-xs font-bold text-white drop-shadow-[0_1px_2px_rgba(0,0,0,0.5)]">
                       {score}
                     </span>
 

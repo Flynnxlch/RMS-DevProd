@@ -196,7 +196,7 @@ export default function MitigationPlan() {
 
   // Check if risk status is "Analyzed", "Planned", or "Need Improvement"
   const riskStatus = getRiskStatus(risk);
-  const canCreateMitigation = riskStatus === 'analyzed' || riskStatus === 'planned' || riskStatus === 'not-finished';
+  const canCreateMitigation = riskStatus === 'mitigate' || riskStatus === 'planned' || riskStatus === 'need-improvement';
 
   if (!canCreateMitigation) {
     return (

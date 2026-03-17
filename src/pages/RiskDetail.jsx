@@ -47,12 +47,14 @@ export default function RiskDetail() {
   // Determine which tabs to show based on status (only if risk exists)
   // hasAnalysis also checks data presence — wizard-registered risks have analysis data at risiko-baru status
   const hasAnalysis = riskStatus
-    ? ['analyzed', 'planned', 'monitor', 'mitigate', 'need-improvement', 'perlu-pengukuran'].includes(riskStatus) ||
+    ? ['planned', 'monitor', 'mitigate', 'need-improvement', 'perlu-pengukuran'].includes(riskStatus) ||
       !!(risk?.existingControl || risk?.keyRiskIndicator || risk?.controlType || (risk?.impactLevel > 0) || (risk?.possibilityType > 0))
     : false;
-  const hasPlanning = riskStatus ? ['planned', 'monitor', 'mitigate', 'need-improvement'].includes(riskStatus) : false;
+  // Planning tab only shows when mitigation plan data has actually been submitted
+  const hasPlanning = !!(risk?.mitigationPlan && risk.mitigationPlan.trim().length > 0);
   const hasMeasurementData = !!(risk?.hasMeasurement || risk?.measurement);
-  const hasEvaluation = riskStatus ? ['monitor', 'mitigate', 'need-improvement'].includes(riskStatus) : false;
+  // Evaluation tab only shows when an evaluation has been submitted
+  const hasEvaluation = !!(risk?.evaluationStatus);
 
   const availableTabs = useMemo(() => {
     if (!riskStatus) return [TABS[0]]; // Return only 'identified' tab if no risk
