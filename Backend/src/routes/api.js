@@ -76,6 +76,14 @@ export async function apiRoutes(request, path) {
     }
   }
 
+  if (path === '/auth/logout') {
+    if (method === 'POST') {
+      const authError = await authMiddleware(request);
+      if (authError) return authError;
+      return authController.logout(request);
+    }
+  }
+
   // User management endpoints (admin only)
   if (path === '/users') {
     if (method === 'GET') {
@@ -304,6 +312,7 @@ export async function apiRoutes(request, path) {
         endpoints: {
           auth: {
             'POST /api/auth/login': 'User login',
+            'POST /api/auth/logout': 'User logout (clears active session)',
             'POST /api/auth/register': 'User registration',
             'GET /api/auth/me': 'Get current user',
           },

@@ -4,7 +4,7 @@ import { config } from '../config/index.js';
 import { prisma } from '../lib/prisma.js';
 import { requireRole } from '../middleware/auth.js';
 import { clearLoginFailures, isLoginLocked, recordLoginFailure } from '../middleware/rateLimit.js';
-import { checkConcurrentLoginLimit, trackUserSession } from '../middleware/session.js';
+import { checkConcurrentLoginLimit, removeUserSession, trackUserSession } from '../middleware/session.js';
 
 /**
  * Auth controller - handles authentication-related API endpoints
@@ -100,16 +100,16 @@ export const authController = {
       const rememberMe = body.rememberMe === true;
       const tokenExpiry = rememberMe ? '7d' : '1h'; // Changed from 24h to 1h for security
       
-      // Generate JWT token
+      // Track user session and device (pass rememberMe so TTL is stored correctly)
+      const sessionInfo = await trackUserSession(request, user, rememberMe);
+
+      // Generate JWT token (include sessionId so logout can identify the exact session)
       const token = jwt.sign(
-        { userId: user.id, email: user.email, rememberMe },
+        { userId: user.id, email: user.email, rememberMe, sessionId: sessionInfo.sessionId },
         config.jwt.secret,
         { expiresIn: tokenExpiry }
       );
-      
-      // Track user session and device
-      const sessionInfo = await trackUserSession(request, user);
-      
+
       // Return user data (without password)
       const userData = {
         id: user.id,
@@ -623,6 +623,43 @@ export const authController = {
       );
     } catch (error) {
       console.error('Delete user error:', error);
+      return new Response(
+        JSON.stringify({ error: 'Internal server error' }),
+        { status: 500, headers: { 'Content-Type': 'application/json' } }
+      );
+    }
+  },
+
+  /**
+   * Logout — removes the in-memory session so the monitor reflects the correct state.
+   * Reads sessionId from the JWT payload (embedded at login) to avoid IP/UA mismatch issues.
+   */
+  logout: async (request) => {
+    try {
+      const user = request.user;
+      if (!user) {
+        return new Response(
+          JSON.stringify({ error: 'Not authenticated' }),
+          { status: 401, headers: { 'Content-Type': 'application/json' } }
+        );
+      }
+
+      // Decode the JWT (already verified by authMiddleware) to get the sessionId
+      const authHeader = request.headers.get('Authorization') || '';
+      const token = authHeader.replace('Bearer ', '');
+      const decoded = jwt.decode(token);
+      const sessionId = decoded?.sessionId;
+
+      if (sessionId) {
+        removeUserSession(user.id, sessionId);
+      }
+
+      return new Response(
+        JSON.stringify({ message: 'Logged out successfully' }),
+        { status: 200, headers: { 'Content-Type': 'application/json' } }
+      );
+    } catch (error) {
+      console.error('Logout error:', error);
       return new Response(
         JSON.stringify({ error: 'Internal server error' }),
         { status: 500, headers: { 'Content-Type': 'application/json' } }

@@ -15,7 +15,7 @@ const MAX_HISTORY_ENTRIES = 1000; // Keep last 1000 session events
 /**
  * Generate session ID from request
  */
-function generateSessionId(request, user) {
+export function generateSessionId(request, user) {
   const userAgent = request.headers.get('User-Agent') || 'unknown';
   const ip = request.headers.get('X-Forwarded-For')?.split(',')[0]?.trim() || 
              request.headers.get('X-Real-IP') || 
@@ -63,7 +63,7 @@ export async function checkConcurrentLoginLimit() {
 /**
  * Track user session and check device limit
  */
-export async function trackUserSession(request, user) {
+export async function trackUserSession(request, user, rememberMe = false) {
   const userId = user.id;
   const deviceInfo = getDeviceFingerprint(request);
   const sessionId = generateSessionId(request, user);
@@ -101,14 +101,17 @@ export async function trackUserSession(request, user) {
   activeSessions.set(userId, userSessions);
   
   // Store session details
+  const ttlMs = rememberMe ? 7 * 24 * 60 * 60 * 1000 : 60 * 60 * 1000; // 7d or 1h
   sessionDetails.set(sessionId, {
     sessionId,
     userId,
     userEmail: user.email,
     userName: user.name,
     deviceInfo,
+    rememberMe,
     createdAt: new Date().toISOString(),
     lastActivity: new Date().toISOString(),
+    expiresAt: new Date(Date.now() + ttlMs).toISOString(),
   });
   
   // Check if warning should be shown
@@ -177,10 +180,17 @@ export function removeUserSession(userId, sessionId) {
 export function updateSessionActivity(userId, sessionId) {
   const userSessions = activeSessions.get(userId);
   if (userSessions && userSessions.has(sessionId)) {
-    // Update last activity
     const details = sessionDetails.get(sessionId);
     if (details) {
-      details.lastActivity = new Date().toISOString();
+      const now = new Date();
+      const ttlMs = details.rememberMe ? 7 * 24 * 60 * 60 * 1000 : 60 * 60 * 1000;
+      const updated = {
+        ...details,
+        lastActivity: now.toISOString(),
+        // Slide the expiry window forward on each activity
+        expiresAt: new Date(now.getTime() + ttlMs).toISOString(),
+      };
+      sessionDetails.set(sessionId, updated);
     }
     return true;
   }
@@ -196,11 +206,26 @@ export function getUserActiveSessions(userId) {
 
 /**
  * Cleanup expired sessions (call periodically)
+ * Evicts sessions whose expiresAt has passed (based on rememberMe TTL).
  */
 export function cleanupExpiredSessions() {
-  // In production, this would check Redis TTL or database timestamps
-  // For now, we keep sessions active until logout
-  console.log(`[Session] Active sessions: ${activeSessions.size} users`);
+  const now = Date.now();
+  let removed = 0;
+
+  // Snapshot entries first to avoid mutating the Map while iterating it
+  const snapshot = Array.from(sessionDetails.entries());
+  for (const [sessionId, details] of snapshot) {
+    if (details.expiresAt && now > new Date(details.expiresAt).getTime()) {
+      removeUserSession(details.userId, sessionId);
+      removed++;
+    }
+  }
+
+  if (removed > 0) {
+    console.log(`[Session] Cleaned up ${removed} expired session(s). Active: ${activeSessions.size} users`);
+  } else {
+    console.log(`[Session] Active sessions: ${activeSessions.size} users`);
+  }
 }
 
 /**
