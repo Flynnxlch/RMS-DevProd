@@ -104,7 +104,7 @@ export default function RiskStatusTrendChart({
         const created = new Date(r.createdAt || Date.now());
         if (Number.isNaN(created.getTime())) return false;
         if (created > end) return false;
-        return getRiskStatus(r) === 'analyzed';
+        return getRiskStatus(r) === 'perlu-pengukuran';
       }).length;
     });
 

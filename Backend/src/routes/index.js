@@ -3,6 +3,7 @@ import { getCurrentSessions } from '../middleware/session.js';
 import { getDetectionHistory } from '../middleware/rateLimit.js';
 import { getLogs, clearLogs, pauseLogging, startLogging, getLoggingStatus, exportLogsToCSV, exportLogsToXLSX } from '../middleware/logger.js';
 import { getDashboardHTML } from './dashboard.js';
+import { authMiddleware } from '../middleware/auth.js';
 import ExcelJS from 'exceljs';
 
 /**
@@ -28,8 +29,8 @@ export async function handleRequest(request) {
   // Monitoring API endpoints
   if (path.startsWith('/monitoring')) {
     const endpoint = path.replace('/monitoring', '');
-    
-    // Server Health
+
+    // Server Health — public, no auth needed
     if (endpoint === '/health') {
       return new Response(
         JSON.stringify({
@@ -47,6 +48,17 @@ export async function handleRequest(request) {
       );
     }
     
+    // All remaining monitoring endpoints require authentication (RISK_ASSESSMENT role only)
+    const monitoringAuthError = await authMiddleware(request);
+    if (monitoringAuthError) return monitoringAuthError;
+
+    if (request.user?.userRole !== 'RISK_ASSESSMENT') {
+      return new Response(
+        JSON.stringify({ error: 'Access denied. Monitoring requires RISK_ASSESSMENT role.' }),
+        { status: 403, headers: { 'Content-Type': 'application/json' } }
+      );
+    }
+
     // Current Sessions
     if (endpoint === '/sessions') {
       const currentSessions = getCurrentSessions();
@@ -58,7 +70,7 @@ export async function handleRequest(request) {
         }
       );
     }
-    
+
     // Detection Bot
     if (endpoint === '/detection') {
       const limit = url.searchParams.get('limit') ? parseInt(url.searchParams.get('limit'), 10) : 100;

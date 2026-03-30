@@ -114,7 +114,9 @@ export const apiRequest = async (url, options = {}) => {
     const contentType = response.headers.get('content-type');
     if (!contentType || !contentType.includes('application/json')) {
       if (!response.ok) {
-        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+        const err = new Error(`HTTP ${response.status}: ${response.statusText}`);
+        err.status = response.status;
+        throw err;
       }
       return {};
     }
@@ -122,7 +124,9 @@ export const apiRequest = async (url, options = {}) => {
     const data = await response.json();
 
     if (!response.ok) {
-      throw new Error(data.error || `HTTP ${response.status}: ${response.statusText}`);
+      const err = new Error(data.error || `HTTP ${response.status}: ${response.statusText}`);
+      err.status = response.status;
+      throw err;
     }
 
     return data;

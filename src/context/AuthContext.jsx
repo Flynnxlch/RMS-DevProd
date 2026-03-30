@@ -116,7 +116,7 @@ export function AuthProvider({ children }) {
     // Check if user is logged in on mount
     const stored = hydrate();
     const token = getAuthToken();
-    
+
     if (stored && token) {
       setUser(stored);
       // Verify token with backend
@@ -125,6 +125,21 @@ export function AuthProvider({ children }) {
       setIsLoading(false);
     }
   }, [verifyToken]);
+
+  // Listen for forced logout events (e.g. 401 detected in API calls)
+  // This clears user state so the UI redirects to login immediately
+  useEffect(() => {
+    const handleForcedLogout = () => {
+      setUser(null);
+      localStorage.removeItem(STORAGE_KEY);
+      setAuthToken(null);
+      localStorage.removeItem(REMEMBER_ME_KEY);
+      localStorage.removeItem(REMEMBER_ME_EXPIRY_KEY);
+      setIsLoading(false);
+    };
+    window.addEventListener('user-logout', handleForcedLogout);
+    return () => window.removeEventListener('user-logout', handleForcedLogout);
+  }, []);
 
   const login = async (email, password, rememberMe = false) => {
     try {

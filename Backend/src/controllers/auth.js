@@ -361,18 +361,14 @@ export const authController = {
         );
       }
 
-      if (!requireRole(user, 'RISK_ASSESSMENT', 'RISK_CHAMPION')) {
+      if (!requireRole(user, 'RISK_ASSESSMENT')) {
         return new Response(
-          JSON.stringify({ error: 'Access denied' }),
+          JSON.stringify({ error: 'Access denied. Only Risk Assessment can manage users.' }),
           { status: 403, headers: { 'Content-Type': 'application/json' } }
         );
       }
 
       const where = {};
-      // Risk Champion can only see users from their region
-      if (user.userRole === 'RISK_CHAMPION') {
-        where.regionCabang = user.regionCabang;
-      }
 
       const users = await prisma.user.findMany({
         where,
@@ -417,9 +413,9 @@ export const authController = {
         );
       }
 
-      if (!requireRole(user, 'RISK_ASSESSMENT', 'RISK_CHAMPION')) {
+      if (!requireRole(user, 'RISK_ASSESSMENT')) {
         return new Response(
-          JSON.stringify({ error: 'Access denied' }),
+          JSON.stringify({ error: 'Access denied. Only Risk Assessment can manage users.' }),
           { status: 403, headers: { 'Content-Type': 'application/json' } }
         );
       }
@@ -456,13 +452,6 @@ export const authController = {
       }
 
       // Risk Champion can only update users from their region
-      if (user.userRole === 'RISK_CHAMPION' && targetUser.regionCabang !== user.regionCabang) {
-        return new Response(
-          JSON.stringify({ error: 'Access denied' }),
-          { status: 403, headers: { 'Content-Type': 'application/json' } }
-        );
-      }
-
       // Prepare update data
       const updateData = {};
       if (name !== undefined && name !== null && typeof name === 'string') {
@@ -578,9 +567,9 @@ export const authController = {
         );
       }
 
-      if (!requireRole(user, 'RISK_ASSESSMENT', 'RISK_CHAMPION')) {
+      if (!requireRole(user, 'RISK_ASSESSMENT')) {
         return new Response(
-          JSON.stringify({ error: 'Access denied' }),
+          JSON.stringify({ error: 'Access denied. Only Risk Assessment can manage users.' }),
           { status: 403, headers: { 'Content-Type': 'application/json' } }
         );
       }
@@ -602,14 +591,6 @@ export const authController = {
         return new Response(
           JSON.stringify({ error: 'Cannot delete your own account' }),
           { status: 400, headers: { 'Content-Type': 'application/json' } }
-        );
-      }
-
-      // Risk Champion can only delete users from their region
-      if (user.userRole === 'RISK_CHAMPION' && targetUser.regionCabang !== user.regionCabang) {
-        return new Response(
-          JSON.stringify({ error: 'Access denied' }),
-          { status: 403, headers: { 'Content-Type': 'application/json' } }
         );
       }
 

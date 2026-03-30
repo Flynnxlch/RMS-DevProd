@@ -115,12 +115,19 @@ export function RiskProvider({ children }) {
       // Handle different error types
       if (err.name === 'AbortError') {
         setErrorRef.current('Request timeout. Please check your connection.');
-      } else if (err.message?.includes('fetch')) {
+      } else if (err.message?.includes('fetch') || err.message?.includes('Network error')) {
         setErrorRef.current('Unable to connect to server. Please check if the backend is running.');
-      } else if (err.message?.includes('401') || err.message?.includes('Unauthorized')) {
-        setErrorRef.current('Session expired. Please login again.');
-        // Clear token if unauthorized
+      } else if (
+        err.status === 401 ||
+        err.message?.includes('401') ||
+        err.message?.includes('Unauthorized') ||
+        err.message?.includes('Invalid or expired token') ||
+        err.message?.includes('No token provided')
+      ) {
+        setErrorRef.current('Sesi habis. Silakan login kembali.');
+        // Clear expired/invalid token so subsequent requests don't keep 401-looping
         localStorage.removeItem('minlt:auth:token');
+        window.dispatchEvent(new Event('user-logout'));
       } else {
         setErrorRef.current(err.message || 'Failed to fetch risks');
       }
