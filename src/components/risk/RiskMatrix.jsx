@@ -33,16 +33,40 @@ function findImpactPossibilityFromScore(score) {
   return null;
 }
 
-export default function RiskMatrix({ risks = [], onCellClick }) {
+// scoreMode: 'inherent' | 'current' | 'residual'
+function pickScore(risk, scoreMode) {
+  if (scoreMode === 'current') {
+    return {
+      score: Number(risk.currentScore ?? risk.inherentScore ?? risk.score ?? 0),
+      impact: risk.currentImpactLevel ?? risk.impactLevel ?? risk.impact ?? 0,
+      possibility: risk.currentProbabilityType ?? risk.possibilityType ?? risk.possibility ?? risk.likelihood ?? 0,
+    };
+  }
+  if (scoreMode === 'residual') {
+    return {
+      score: Number(risk.residualScore ?? risk.measurement?.residualScore ?? 0),
+      impact: risk.residualImpactLevel ?? risk.measurement?.residualImpactLevel ?? 0,
+      possibility: risk.residualPossibilityType ?? risk.measurement?.residualPossibilityType ?? 0,
+    };
+  }
+  // inherent (default)
+  return {
+    score: Number(risk.inherentScore ?? risk.measurement?.inherentScore ?? risk.score ?? 0),
+    impact: risk.impactLevel ?? risk.measurement?.impactLevel ?? risk.impact ?? 0,
+    possibility: risk.possibilityType ?? risk.measurement?.possibilityType ?? risk.possibility ?? risk.likelihood ?? 0,
+  };
+}
+
+export default function RiskMatrix({ risks = [], onCellClick, scoreMode = 'inherent' }) {
   const matrix = useMemo(() => {
     const grid = Array(5).fill(null).map(() => Array(5).fill(0));
 
     for (const risk of risks) {
-      const actualScore = Number(risk.currentScore ?? risk.residualScore ?? risk.inherentScore ?? risk.score ?? 0);
+      const { score: actualScore, impact: rawImpact, possibility: rawPossibility } = pickScore(risk, scoreMode);
       if (actualScore <= 0) continue;
 
-      let impact = risk.currentImpactLevel ?? risk.impactLevel ?? risk.impact ?? 0;
-      let possibility = risk.currentProbabilityType ?? risk.possibilityType ?? risk.possibility ?? risk.likelihood ?? 0;
+      let impact = rawImpact;
+      let possibility = rawPossibility;
 
       if ((impact <= 0 || possibility <= 0) && actualScore > 0) {
         const found = findImpactPossibilityFromScore(actualScore);
@@ -56,7 +80,7 @@ export default function RiskMatrix({ risks = [], onCellClick }) {
     }
 
     return grid;
-  }, [risks]);
+  }, [risks, scoreMode]);
 
   const possibilityOrder = [5, 4, 3, 2, 1];
   const impactOrder = [1, 2, 3, 4, 5];

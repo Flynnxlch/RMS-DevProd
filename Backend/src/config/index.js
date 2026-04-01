@@ -3,7 +3,7 @@ const env = process.env;
 
 export const config = {
   // Server configuration
-  port: parseInt(env.PORT || '3001', 10),
+  port: parseInt(env.PORT || '3127', 10),
   nodeEnv: env.NODE_ENV || 'development',
   
   // CORS configuration

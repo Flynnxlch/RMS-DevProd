@@ -52,6 +52,7 @@ export default function RiskAnalysisForm({
   onSubmit,
   onCancel,
   wizardMode = false, // When true: hide Section 3, show "← Back" / "Save Risk" buttons
+  hideMeasurementSection = false, // When true: hide Section 3 in edit mode (has its own dedicated menu)
   isSubmitting = false,
 }) {
   // Bagian 1: Kontrol yang Ada
@@ -130,8 +131,8 @@ export default function RiskAnalysisForm({
       kriValueDanger,
     };
 
-    // Bagian 3 is excluded in wizard mode (moved to Phase 5 "Pengukuran Risiko")
-    if (!wizardMode) {
+    // Bagian 3 is excluded in wizard mode or when hideMeasurementSection is true (dedicated menu)
+    if (!wizardMode && !hideMeasurementSection) {
       payload.impactDescription = impactDescription;
       payload.impactLevel = Number(impactLevel);
       payload.impact = Number(impactLevel);
@@ -331,8 +332,8 @@ export default function RiskAnalysisForm({
         </div>
       </div>
 
-      {/* Bagian 3: Pengukuran Resiko — hidden in wizard mode (moved to Phase 5) */}
-      {!wizardMode && <div className="border border-gray-200 dark:border-gray-700 rounded-lg p-4 bg-gray-50 dark:bg-gray-800/40">
+      {/* Bagian 3: Pengukuran Resiko — hidden in wizard mode or when using dedicated measurement menu */}
+      {!wizardMode && !hideMeasurementSection && <div className="border border-gray-200 dark:border-gray-700 rounded-lg p-4 bg-gray-50 dark:bg-gray-800/40">
         <h3 className="text-sm font-semibold text-gray-900 dark:text-white mb-4">Bagian 3: Pengukuran Resiko</h3>
         
         <div className="space-y-6">

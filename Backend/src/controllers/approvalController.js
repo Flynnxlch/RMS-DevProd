@@ -90,6 +90,16 @@ export const approvalController = {
         );
       }
 
+      // Guard: RISK_CHAMPION can only act on risks from their own Cabang (KPS users can act on all)
+      if (user.userRole === 'RISK_CHAMPION') {
+        if (user.regionCabang && user.regionCabang !== 'KPS' && risk.regionCode !== user.regionCabang) {
+          return new Response(
+            JSON.stringify({ error: 'Access denied. You can only approve or reject risks from your own Cabang.' }),
+            { status: 403, headers: { 'Content-Type': 'application/json' } }
+          );
+        }
+      }
+
       // Guard: don't allow further action if already fully approved
       const currentStatus = deriveApprovalStatus(risk.approvals);
       if (currentStatus === 'approved') {

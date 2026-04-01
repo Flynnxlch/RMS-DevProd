@@ -62,6 +62,7 @@ model Risk {
   category                String?   @db.VarChar(500)
   riskCategoryType        String?   @map("risk_category_type") @db.VarChar(255)
   regionCode              Cabang?   @map("region_code")
+  riskDate                DateTime? @map("risk_date")
   evaluationRequested     Boolean?  @default(false) @map("evaluation_requested")
   evaluationRequestedAt   DateTime? @map("evaluation_requested_at")
   createdAt               DateTime  @default(now()) @map("created_at")

@@ -1,9 +1,9 @@
 /**
  * Generate risk ID in format: RISK-YYYYMMDD-XXXX
  */
-export function generateRiskId() {
-  const now = new Date();
-  const dateStr = now.toISOString().slice(0, 10).replace(/-/g, '');
+export function generateRiskId(date) {
+  const d = date ? new Date(date) : new Date();
+  const dateStr = d.toISOString().slice(0, 10).replace(/-/g, '');
   const random = Math.floor(Math.random() * 10000).toString().padStart(4, '0');
   return `RISK-${dateStr}-${random}`;
 }

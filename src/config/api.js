@@ -16,7 +16,7 @@ const getApiBaseUrl = () => {
   // In development, use the same hostname as the frontend
   // This automatically works for both localhost and network IP
   const hostname = typeof window !== 'undefined' ? window.location.hostname : 'localhost';
-  const port = '3001'; // Your backend port
+  const port = '3127'; // Your backend port
   
   // If accessing via localhost, use localhost for API
   // If accessing via IP, use the same IP for API

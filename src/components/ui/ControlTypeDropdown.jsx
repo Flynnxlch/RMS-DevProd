@@ -1,9 +1,9 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 
 const CONTROL_TYPE_OPTIONS = [
-  'Kontrol operasi',
-  'Kontrol kepatuhan',
-  'Kontrol pelaporan',
+  'Kontrol Operasi',
+  'Kontrol Kepatuhan',
+  'Kontrol Pelaporan',
 ];
 
 export default function ControlTypeDropdown({ id, value, onChange, error = false, openUpward = false, className = '', placeholder = 'Pilih Jenis Kontrol' }) {

@@ -24,7 +24,7 @@ export async function testBackendConnection() {
     if (error.message.includes('fetch') || error.message.includes('Failed to fetch')) {
       return { 
         connected: false, 
-        message: 'Backend is not running. Please start the backend server on port 3001.' 
+        message: 'Backend is not running. Please start the backend server.' 
       };
     }
     return { connected: false, message: error.message };

@@ -250,6 +250,7 @@ export const riskController = {
           regionCode: risk.regionCode,
           evaluationRequested: risk.evaluationRequested || false,
           evaluationRequestedAt: risk.evaluationRequestedAt?.toISOString(),
+          riskDate: risk.riskDate?.toISOString() || null,
           approvalStatus,
           approvals: formattedApprovals,
           hasMeasurement: !!risk.measurement,
@@ -508,6 +509,7 @@ export const riskController = {
         regionCode: risk.regionCode,
         evaluationRequested: risk.evaluationRequested || false,
         evaluationRequestedAt: risk.evaluationRequestedAt?.toISOString(),
+        riskDate: risk.riskDate?.toISOString() || null,
         approvalStatus,
         approvals: formattedApprovals,
         hasMeasurement: !!risk.measurement,
@@ -641,6 +643,7 @@ export const riskController = {
         category,
         riskCategoryType,
         regionCode,
+        riskDate,
       } = body;
 
       if (!riskEvent) {
@@ -666,8 +669,8 @@ export const riskController = {
         }
       }
 
-      // Generate risk ID
-      const riskId = generateRiskId();
+      // Generate risk ID — uses riskDate if provided so ID reflects the risk's date
+      const riskId = generateRiskId(riskDate || null);
 
       // Check if analysis data (Bagian 1 / Bagian 2) was submitted alongside the risk
       const analysisFields = [
@@ -696,6 +699,7 @@ export const riskController = {
             category: category || null,
             riskCategoryType: riskCategoryType || null,
             regionCode: finalRegionCode,
+            riskDate: riskDate ? new Date(riskDate) : new Date(),
           },
         });
 
@@ -803,6 +807,7 @@ export const riskController = {
       // Only update provided fields (sesuai dengan schema baru)
       if (body.riskEvent !== undefined) updateData.riskEvent = body.riskEvent.trim();
       if (body.title !== undefined) updateData.title = body.title.trim();
+      if (body.riskDate !== undefined) updateData.riskDate = body.riskDate ? new Date(body.riskDate) : null;
       if (body.organization !== undefined) updateData.organization = body.organization;
       if (body.division !== undefined) updateData.division = body.division;
       if (body.target !== undefined) updateData.target = body.target;

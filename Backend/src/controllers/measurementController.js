@@ -1,6 +1,6 @@
 import { prisma } from '../lib/prisma.js';
 import { clearCacheByPattern } from '../utils/cache.js';
-import { getRiskLevel } from '../utils/risk.js';
+import { computeRiskScore, getRiskLevel } from '../utils/risk.js';
 
 /**
  * POST /api/risks/:riskId/measurement

@@ -108,11 +108,12 @@ export default function RiskDetail() {
   const handleEditSubmit = async (payload) => {
     try {
       if (activeTab === 'identified') {
-        // Update risk basic info
-        await updateRisk({ ...payload, id: risk.id });
+        // Update risk basic info — include riskDate so it can be changed via the edit form
+        await updateRisk({ ...payload, id: risk.id, riskDate: payload.riskDate || null });
         await refreshRisks();
       } else if (activeTab === 'analysis') {
-        // Save analysis via API
+        // Save analysis via API — only Bagian 1 (controls) and Bagian 2 (KRI).
+        // Bagian 3 (measurement scores) is managed via the dedicated Pengukuran Risiko menu.
         const analysisPayload = {
           existingControl: payload.existingControl,
           controlType: payload.controlType,
@@ -125,19 +126,6 @@ export default function RiskDetail() {
           kriValueSafe: payload.kriValueSafe,
           kriValueCaution: payload.kriValueCaution,
           kriValueDanger: payload.kriValueDanger,
-          impactDescription: payload.impactDescription,
-          impactLevel: payload.impactLevel,
-          possibilityType: payload.possibilityType,
-          possibilityDescription: payload.possibilityDescription,
-          residualImpactDescription: payload.residualImpactDescription,
-          residualImpactLevel: payload.residualImpactLevel,
-          residualPossibilityType: payload.residualPossibilityType,
-          residualPossibilityDescription: payload.residualPossibilityDescription,
-          // Kirim skor dan level yang sudah dihitung di frontend (RiskMatrix)
-          inherentScore: payload.inherentScore,
-          inherentLevel: payload.inherentLevel,
-          residualScore: payload.residualScore,
-          residualLevel: payload.residualLevel,
         };
         
         await apiRequest(API_ENDPOINTS.risks.analysis(risk.id), {
@@ -204,6 +192,7 @@ export default function RiskDetail() {
               category: risk.category || risk.riskCategory || '',
               riskType: risk.riskType || '',
               regionCode: risk.regionCode || 'KPS',
+              riskDate: risk.riskDate || risk.createdAt || null,
             }}
             onSubmit={handleEditSubmit}
             submitLabel="Simpan Perubahan"
@@ -216,6 +205,7 @@ export default function RiskDetail() {
             risk={risk}
             onSubmit={handleEditSubmit}
             onCancel={handleEditCancel}
+            hideMeasurementSection={true}
           />
         );
       case 'planning':
@@ -284,6 +274,16 @@ export default function RiskDetail() {
                   {risk.regionCode ? getCabangCode(risk.regionCode) : 'N/A'}
                 </p>
               </div>
+            </div>
+
+            {/* Tanggal Risiko */}
+            <div>
+              <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-1">Tanggal Risiko</label>
+              <p className="text-sm text-gray-900 dark:text-white">
+                {risk.riskDate
+                  ? new Date(risk.riskDate).toLocaleDateString('id-ID', { day: '2-digit', month: '2-digit', year: 'numeric' })
+                  : new Date(risk.createdAt).toLocaleDateString('id-ID', { day: '2-digit', month: '2-digit', year: 'numeric' })}
+              </p>
             </div>
 
             {/* Peristiwa Risiko */}

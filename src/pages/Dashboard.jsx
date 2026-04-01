@@ -39,13 +39,22 @@ export default function Dashboard() {
   const navigate = useNavigate();
   const mode = searchParams.get('mode') || 'risk';
 
-  // StatusBar filter state
-  const [periodMonths, setPeriodMonths] = useState(1);
+  // RiskMatrix score mode: 'inherent' | 'current' | 'residual'
+  const [matrixScoreMode, setMatrixScoreMode] = useState('inherent');
+
+  // StatusBar filter state — date-range mode (max 6 months)
   const [startMonth, setStartMonth] = useState(() => {
     const now = new Date();
     return { year: now.getFullYear(), month: now.getMonth() };
   });
+  const [endMonth, setEndMonth] = useState(() => {
+    const now = new Date();
+    return { year: now.getFullYear(), month: now.getMonth() };
+  });
   const [branchFilter, setBranchFilter] = useState('all');
+
+  // Derive periodMonths so charts still work (1 = daily view, >1 = monthly buckets)
+  const periodMonths = (endMonth.year - startMonth.year) * 12 + (endMonth.month - startMonth.month) + 1;
 
   // Check if user is Risk Assessment (only Risk Assessment can access User mode)
   const isAdminPusat = user?.userRole === 'RISK_ASSESSMENT';
@@ -64,16 +73,16 @@ export default function Dashboard() {
     return Array.from(labels).sort();
   }, [risks]);
 
-  // Risks filtered by the StatusBar period + branch selections
+  // Risks filtered by the StatusBar date range + branch selections
   const filteredRisks = useMemo(() => {
     const start = new Date(startMonth.year, startMonth.month, 1);
     start.setHours(0, 0, 0, 0);
-    // new Date(y, m + n, 0) = last day of month (m + n - 1)
-    const end = new Date(startMonth.year, startMonth.month + periodMonths, 0);
+    // Last day of endMonth
+    const end = new Date(endMonth.year, endMonth.month + 1, 0);
     end.setHours(23, 59, 59, 999);
 
     return risks.filter((r) => {
-      const created = new Date(r.createdAt);
+      const created = new Date(r.riskDate || r.createdAt);
       if (isNaN(created.getTime())) return true;
       if (created < start || created > end) return false;
       if (isAdminPusat && branchFilter !== 'all') {
@@ -82,7 +91,7 @@ export default function Dashboard() {
       }
       return true;
     });
-  }, [risks, periodMonths, startMonth, isAdminPusat, branchFilter]);
+  }, [risks, startMonth, endMonth, isAdminPusat, branchFilter]);
 
   const summary = useMemo(() => getRiskSummary(filteredRisks), [filteredRisks]);
 
@@ -223,7 +232,7 @@ export default function Dashboard() {
               <p className="text-sm font-semibold text-yellow-800 dark:text-yellow-300">Peringatan</p>
               <p className="text-xs text-yellow-700 dark:text-yellow-400 mt-1">{risksError}</p>
               <p className="text-xs text-yellow-700 dark:text-yellow-400 mt-2">
-                Pastikan backend server berjalan di <code className="bg-yellow-100 dark:bg-yellow-900/30 px-1 rounded">http://localhost:3001</code>
+                Pastikan backend server berjalan di <code className="bg-yellow-100 dark:bg-yellow-900/30 px-1 rounded">Di Backend</code>
               </p>
             </div>
           </div>
@@ -275,24 +284,24 @@ export default function Dashboard() {
       {/* KPI Row */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
         <SmallBox title="Total Risiko" value={String(summary.total)} icon="bi-clipboard-data" color="primary" link="/risks" linkText="Buka register" />
-        <SmallBox title="Tinggi + Ekstrem" value={String(summary.highPlus)} icon="bi-exclamation-triangle-fill" color="danger" link="/risks" linkText="Tinjau prioritas" />
+        <SmallBox title="High Risk" value={String(summary.highPlus)} icon="bi-exclamation-triangle-fill" color="danger" link="/risks" linkText="Tinjau prioritas" />
         <SmallBox title="Cakupan Mitigasi" value={String(mitigationCoverage)} suffix="%" icon="bi-shield-check" color="success" link="/mitigations" linkText="Lacak tindakan" />
         <SmallBox title="Evaluasi Keberhasilan" value={String(dueThisMonth)} icon="bi-calendar-check" color="warning" link="/evaluations" linkText="Rencanakan tinjauan" />
       </div>
 
-      {/* Status Bar — period, start month, and branch filters */}
+      {/* Status Bar — date range and branch filters */}
       <StatusBar
-        periodMonths={periodMonths}
-        onPeriodChange={setPeriodMonths}
         startMonth={startMonth}
         onStartMonthChange={setStartMonth}
+        endMonth={endMonth}
+        onEndMonthChange={setEndMonth}
         branchFilter={branchFilter}
         onBranchChange={setBranchFilter}
         branchOptions={branchOptions}
         showBranchFilter={isAdminPusat}
       />
 
-      {/* Monthly Recap Report (Open vs Planned) + Distribusi Risiko per Kategori */}
+      {/* Monthly Recap Report (Open vs Planned) + Distribusi Status Risiko */}
       <Card
         title="Rekapitulasi Risiko"
         collapsible
@@ -318,19 +327,29 @@ export default function Dashboard() {
           </div>
           <div className="lg:col-span-4">
             <p className="text-center text-sm font-semibold text-gray-700 dark:text-gray-200">
-              Distribusi Risiko per Kategori
+              Distribusi Status Risiko
             </p>
             <p className="text-center text-xs text-gray-500 dark:text-gray-400 mb-2">
               Total : {summary.total}
             </p>
-            {summary.total > 0 && categorySummary.length > 0 ? (
-              <CategoryDistributionChart
-                data={categorySummary}
-                height={Math.max(240, 180 + categorySummary.length * 18)}
-              />
+            {summary.total > 0 ? (
+              <DonutChart labels={statusDonut.labels} data={statusDonut.data} colors={statusDonut.colors} height={180} />
             ) : (
               <div className="flex items-center justify-center min-h-[200px] text-sm text-gray-400 dark:text-gray-500">Belum ada risiko.</div>
             )}
+          </div>
+        </div>
+
+        {/* Bottom separator + status legend */}
+        <div className="mt-4 pt-3 border-t border-gray-200 dark:border-gray-700">
+          <div className="flex flex-wrap gap-x-5 gap-y-2">
+            {statusSummary.map((x) => (
+              <div key={x.key} className="inline-flex items-center gap-1.5 text-xs">
+                <span className="h-2 w-2 rounded-full shrink-0" style={{ backgroundColor: x.color }} />
+                <span className="text-gray-700 dark:text-gray-200">{x.label}</span>
+                <span className="font-semibold text-gray-900 dark:text-white">({x.count})</span>
+              </div>
+            ))}
           </div>
         </div>
       </Card>
@@ -357,22 +376,15 @@ export default function Dashboard() {
             <RiskTrendChart risks={filteredRisks} height={300} periodMonths={periodMonths} startMonth={startMonth} />
           </Card>
 
-          <Card title="Distribusi Status Risiko" outline color="primary" collapsible>
-            {summary.total > 0 ? (
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 items-center">
-                <DonutChart labels={statusDonut.labels} data={statusDonut.data} colors={statusDonut.colors} height={220} />
-                <div className="space-y-2">
-                  {statusSummary.map((x) => (
-                    <div key={x.key} className="flex items-center justify-between text-sm">
-                      <div className="flex items-center gap-2 min-w-0">
-                        <span className="h-2.5 w-2.5 rounded-full shrink-0" style={{ backgroundColor: x.color }} />
-                        <span className="truncate text-gray-700 dark:text-gray-200">{x.label}</span>
-                      </div>
-                      <span className="font-semibold text-gray-900 dark:text-white">{x.count}</span>
-                    </div>
-                  ))}
-                </div>
-              </div>
+          <Card title="Distribusi Risiko per Kategori" outline color="primary" collapsible>
+            <p className="text-center text-xs text-gray-500 dark:text-gray-400 mb-2">
+              Total : {summary.total}
+            </p>
+            {summary.total > 0 && categorySummary.length > 0 ? (
+              <CategoryDistributionChart
+                data={categorySummary}
+                height={Math.max(240, 180 + categorySummary.length * 18)}
+              />
             ) : (
               <div className="flex items-center justify-center py-12 text-sm text-gray-400 dark:text-gray-500">Belum ada risiko.</div>
             )}
@@ -498,6 +510,28 @@ export default function Dashboard() {
             collapsible
             color="primary"
             gradient
+            headerExtra={
+              <div className="flex items-center gap-1 rounded-lg bg-black/10 dark:bg-black/20 p-0.5 text-xs font-semibold">
+                {[
+                  { key: 'inherent', label: 'Inherent' },
+                  { key: 'current', label: 'Current' },
+                  { key: 'residual', label: 'Residual' },
+                ].map(({ key, label }) => (
+                  <button
+                    key={key}
+                    type="button"
+                    onClick={() => setMatrixScoreMode(key)}
+                    className={`px-2 py-0.5 rounded-md transition-colors ${
+                      matrixScoreMode === key
+                        ? 'bg-white text-[#0d6efd] shadow-sm'
+                        : 'text-gray-800 dark:text-white/80 hover:text-gray-900 dark:hover:text-white'
+                    }`}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+            }
             footer={
               <div className="flex flex-wrap items-center gap-3 text-sm text-gray-900 dark:text-white/90">
                 <span className="font-semibold">Legenda:</span>
@@ -511,7 +545,7 @@ export default function Dashboard() {
             }
           >
             <div className="h-[260px] bg-white/10 dark:bg-gray-800/20 rounded-lg overflow-hidden border border-white/20 dark:border-gray-700/30 relative">
-              <RiskMatrix risks={filteredRisks} />
+              <RiskMatrix risks={filteredRisks} scoreMode={matrixScoreMode} />
             </div>
           </Card>
 

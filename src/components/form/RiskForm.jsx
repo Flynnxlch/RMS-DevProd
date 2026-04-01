@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import CabangDropdown from '../ui/CabangDropdown';
 import CategoryDropdown from '../ui/CategoryDropdown';
@@ -9,18 +9,58 @@ import { getCabangLabel } from '../../utils/cabang';
 const ORGANIZATION_FIXED = 'PT. Gapura Angkasa';
 
 const DIVISION_OPTIONS_KPS = [
-  'Internal Audit Group Head',
-  'Quality Assurance Group Head',
-  'Corporate Secretary and General Affair Group',
-  'Planning & Performance Group Head',
-  'Legal Group Head',
-  'Human Capital Management Group Head',
-  'Human Capital Support & Industrial Relation',
-  'Procurement Group Head',
-  'Training Development Group Head',
-  'Accounting, Tax & Asset Management Group',
+  'Operational Audit Division Head',
+  'Enabler Audit Division Head',
+  'Quality & Standardization Division Head',
+  'Ground Handling & Ancillary QA Division Head',
+  'Quality Control Department Head',
+  'Head of Inspector Safety, Security & Quality',
+  'Stakeholder Relation Division Head',
+  'General Affairs Division Head',
+  'Corporate Communication Division Head',
+  'Maintenance Building Department Head',
+  'Corporate Communication Department Head',
+  'Marketing Communication Department Head',
+  'Corporate Planning Division Head',
+  'Corporate Performance Division Head',
+  'Corporate Legal Division Head',
+  'Business Legal Division Head',
+  'Manpower Planning & Organization Development Division Head',
+  'Talent Management & Corporate Culture Division Head',
+  'Head of Talent Management',
+  'Industrial Relations & OS Management Division Head',
+  'Human Capital Support Division Head',
+  'Head of Payroll & Benefits',
+  'Procurement Planning, Control & VM Division Head',
+  'Procurement Operation Division Head',
+  'Licence Manpower Training & Development Division Head',
+  'Non Licence Manpower Training & Development Division Head',
+  'Accounting Division Head',
+  'Asset Management Division Head',
+  'Tax Management Division Head',
+  'Budgeting & Cost Control Division Head',
+  'Finance Division Head',
+  'Risk Management Division Head',
+  'Governance & Compliance Division Head',
+  'Ground Handling Regional Landside Operation Division Head',
+  'Ground Handling Regional Airside Operation Division Head',
+  'Warehouse, Logistic & Concierge Operation Division Head',
+  'Ground Handling Command Center Department Head',
+  'GSE Maintenance Division Head',
+  'GSE Spare Parts Engineering Division Head',
+  'Full-Service Airlines Service Division Head',
+  'LCC Airline Service Division Head',
+  'Customer Service Division Head',
+  'Information Technology Division Head',
+  'Health, Safety, Security & Environment Division Head',
+  'Domestic Airlines Account Management Division Head',
+  'International Airlines Account Management Division Head',
+  'Warehouse Handling & Storage Facility Business Division Head',
+  'Concierge Business Division Head',
+  'Logistic Business Division Head',
+  'Customer Relationship Management Division Head',
 ];
-const DIVISION_OPTIONS_NON_KPS = [...DIVISION_OPTIONS_KPS, 'Divisi Korieopio'];
+const DIVISION_OPTIONS_NON_KPS = [...DIVISION_OPTIONS_KPS];
 
 const RISK_TYPE_OPTIONS = [
   'Strategic',
@@ -33,8 +73,7 @@ const RISK_TYPE_OPTIONS = [
 
 const RISK_CATEGORY_TYPE_OPTIONS = [
   'Kualitatif',
-  'Kuantitatif',
-  'Kualitatif dan Kuantitatif',
+  'Kuantitatif'
 ];
 
 // Cabang options are now handled by CabangDropdown component
@@ -110,6 +149,14 @@ export default function RiskForm({
   const [impact, setImpact] = useState(initial.impactLevel || initial.impact || 4);
   const [mitigation, setMitigation] = useState(initial.mitigation || '');
 
+  // riskDate: defaults to today, user can change via date picker
+  const todayIso = () => new Date().toISOString().slice(0, 10);
+  const [riskDate, setRiskDate] = useState(() => {
+    if (initial.riskDate) return new Date(initial.riskDate).toISOString().slice(0, 10);
+    return todayIso();
+  });
+  const dateInputRef = useRef(null);
+
   // For non-selectable users, ensure regionCode stays in sync with user's regionCabang
   const finalRegionCode = canSelectCabang ? regionCode : (user?.regionCabang || regionCode);
 
@@ -132,6 +179,7 @@ export default function RiskForm({
       riskImpactExplanation: riskImpactExplanation.trim(),
       title: riskEvent.trim(), // Keep title for backward compatibility
       regionCode: finalRegionCode,
+      riskDate: riskDate || todayIso(),
     };
     
     // Only include these fields if not simplified
@@ -155,6 +203,7 @@ export default function RiskForm({
       setRiskCause('');
       setQuantitativeRiskImpact('');
       setRiskImpactExplanation('');
+      setRiskDate(todayIso());
       if (!simplified) {
         setPossibility(3);
         setImpact(4);
@@ -223,6 +272,34 @@ export default function RiskForm({
               disabled
             />
           )}
+        </div>
+      </div>
+
+      {/* Tanggal Risiko */}
+      <div className="flex flex-col gap-2">
+        <label className="text-sm font-semibold text-gray-700 dark:text-gray-200">
+          Tanggal Risiko
+          <span className="ml-1 text-xs font-normal text-gray-500 dark:text-gray-400">(otomatis hari ini, dapat diubah)</span>
+        </label>
+        <div className="relative">
+          <input
+            ref={dateInputRef}
+            type="date"
+            className={`${inputBase} pr-10 cursor-pointer`}
+            value={riskDate}
+            onChange={(e) => setRiskDate(e.target.value)}
+            max={todayIso()}
+          />
+          <button
+            type="button"
+            tabIndex={-1}
+            onClick={() => {
+              try { dateInputRef.current?.showPicker(); } catch { dateInputRef.current?.focus(); }
+            }}
+            className="absolute inset-y-0 right-0 px-3 flex items-center text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 transition-colors"
+          >
+            <i className="bi bi-calendar3 text-sm" />
+          </button>
         </div>
       </div>
 

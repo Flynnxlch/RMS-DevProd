@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 
 const CONTROL_LEVEL_OPTIONS = [
-  'Kontrol Level Entitas',
+  'Kontrol Level Entitas/Kantor Pusat',
   'Kontrol Level Operasi',
 ];
 
