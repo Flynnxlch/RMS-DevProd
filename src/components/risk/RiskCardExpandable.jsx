@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { getRiskLevel } from '../../utils/risk';
 import { getRiskStatus, RISK_STATUS_CONFIG } from '../../utils/riskStatus';
@@ -24,8 +24,6 @@ export default function RiskCardExpandable({
   showRiskLevel = true,
   showScoreBar = false,
   showRemoveButton = false,
-  showEvaluateButton = false,
-  showActionButtons = true, // Controls Analyze and Mitigate buttons
   showEvaluationMonth = true,
   showRiskLevelText = true, // Show risk level text below category (default: true)
   riskEventMaxLength = 18,
@@ -49,6 +47,8 @@ export default function RiskCardExpandable({
   const hasAnalysis = ['planned', 'monitor', 'mitigate', 'need-improvement'].includes(riskStatus);
   const hasPlanning = ['planned', 'monitor', 'mitigate', 'need-improvement'].includes(riskStatus);
   const hasEvaluation = ['monitor', 'mitigate', 'need-improvement'].includes(riskStatus);
+
+  const canDelete = user?.userRole === 'RISK_ASSESSMENT';
 
   const handleCardClick = () => {
     if (clickable) {
@@ -107,16 +107,16 @@ export default function RiskCardExpandable({
                 if (riskStatus === 'risiko-baru') {
                   return null;
                 }
-                
+
                 // Determine which score to show based on status
                 // risk.score from backend already has the right priority: currentScore > measurement.inherentScore > analysis.inherentScore
                 const displayScore = Number(risk.score ?? 0);
                 const labelText = 'Tingkat Risiko';
-                
+
                 if (!displayScore || displayScore <= 0) {
                   return null;
                 }
-                
+
                 const riskLevel = getRiskLevel(displayScore);
                 return riskLevel ? (
                   <div>
@@ -143,7 +143,7 @@ export default function RiskCardExpandable({
             </div>
           </div>
 
-          {/* Right side: Badge, Score Bar, Action Buttons */}
+          {/* Right side: Badge, Score Bar, Delete Button */}
           <div className="flex flex-col items-end gap-2 shrink-0">
             {/* Badge container - can expand based on label length */}
             {/* Only show badge if score exists, is > 0, and status is not risiko-baru */}
@@ -168,8 +168,8 @@ export default function RiskCardExpandable({
               );
             })()}
 
-            {/* Remove Button */}
-            {showRemoveButton && onRemove && (
+            {/* Delete Button — Risk Assessment only */}
+            {showRemoveButton && onRemove && canDelete && (
               <button
                 type="button"
                 onClick={(e) => {
@@ -177,46 +177,11 @@ export default function RiskCardExpandable({
                   setShowDeleteConfirm(true);
                 }}
                 className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-white bg-[#dc3545] rounded-lg hover:bg-[#bb2d3b] transition-colors shadow-sm"
-                title="Remove Risk"
+                title="Hapus Risiko"
               >
                 <i className="bi bi-trash"></i>
-                <span className="hidden sm:inline">Remove</span>
+                <span className="hidden sm:inline">Hapus</span>
               </button>
-            )}
-
-            {/* Action buttons based on status */}
-            {showActionButtons && riskStatus === 'risiko-baru' && user?.userRole === 'RISK_OFFICER' && (
-              <Link
-                to={`/risks/${risk.id}/risk-analysis`}
-                onClick={(e) => e.stopPropagation()}
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-white bg-[#0c9361] rounded-lg hover:bg-[#0a7a4f] transition-colors shadow-sm"
-                title="Risk Analysis"
-              >
-                <i className="bi bi-clipboard-check"></i>
-                <span className="hidden sm:inline">Analyze</span>
-              </Link>
-            )}
-            {showActionButtons && (riskStatus === 'mitigate' || riskStatus === 'planned' || riskStatus === 'need-improvement') && !risk.evaluationRequested && (user?.userRole === 'RISK_OFFICER' || user?.userRole === 'RISK_CHAMPION') && (
-              <Link
-                to={`/risks/${risk.id}/mitigation-plan`}
-                onClick={(e) => e.stopPropagation()}
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-white bg-[#0d6efd] rounded-lg hover:bg-blue-600 transition-colors shadow-sm"
-                title="Mitigation Plan"
-              >
-                <i className="bi bi-shield-check"></i>
-                <span className="hidden sm:inline">Mitigate</span>
-              </Link>
-            )}
-            {showEvaluateButton && (riskStatus === 'planned' || riskStatus === 'need-improvement') && (
-              <Link
-                to={`/risks/${risk.id}/evaluation`}
-                onClick={(e) => e.stopPropagation()}
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-white bg-[#ffc107] rounded-lg hover:bg-yellow-600 transition-colors shadow-sm"
-                title="Monthly Evaluation"
-              >
-                <i className="bi bi-calendar-check"></i>
-                <span className="hidden sm:inline">Evaluate</span>
-              </Link>
             )}
           </div>
         </div>
@@ -397,11 +362,10 @@ export default function RiskCardExpandable({
           }
           setShowDeleteConfirm(false);
         }}
-        title="Delete Risk"
+        title="Hapus Risiko"
         itemName={risk.riskEvent || risk.title || 'this risk'}
         message={`Are you sure you want to delete "${risk.riskEvent || risk.title || 'this risk'}"? This action cannot be undone.`}
       />
     </div>
   );
 }
-
