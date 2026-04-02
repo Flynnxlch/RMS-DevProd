@@ -28,11 +28,13 @@ function fmtDateTick(dateObj) {
   return `${d.getDate()} ${new Intl.DateTimeFormat('en-GB', { month: 'short' }).format(d)}`;
 }
 
+// selectedStatuses: [{ key: string, label: string, color: string }]
 export default function RiskStatusTrendChart({
   risks = [],
   height = 220,
   periodMonths = 1,
   startMonth = (() => { const n = new Date(); return { year: n.getFullYear(), month: n.getMonth() }; })(),
+  selectedStatuses = [],
 }) {
   const canvasRef = useRef(null);
   const chartRef = useRef(null);
@@ -55,7 +57,7 @@ export default function RiskStatusTrendChart({
     return () => clearInterval(id);
   }, [isDaily]);
 
-  const { labels, analyzedCount, plannedCount } = useMemo(() => {
+  const chartData = useMemo(() => {
     const now = new Date();
     const selYear = startMonth.year;
     const selMonth = startMonth.month;
@@ -65,7 +67,6 @@ export default function RiskStatusTrendChart({
     let labelsLocal = [];
 
     if (isDaily) {
-      // Daily buckets: day 1 → last day of month (or today if current month)
       const lastDay = isCurrentMonth
         ? now.getDate()
         : new Date(selYear, selMonth + 1, 0).getDate();
@@ -75,7 +76,6 @@ export default function RiskStatusTrendChart({
         return d;
       });
     } else {
-      // Monthly buckets: startMonth → startMonth + periodMonths - 1
       labelsLocal = Array.from({ length: periodMonths }, (_, i) => {
         const d = new Date(selYear, selMonth + i, 1);
         d.setHours(0, 0, 0, 0);
@@ -87,7 +87,6 @@ export default function RiskStatusTrendChart({
       if (isDaily) {
         const end = new Date(startDate);
         end.setHours(23, 59, 59, 999);
-        // Last bucket of current month → cap at now
         if (isCurrentMonth && index === labelsLocal.length - 1) return now;
         return end;
       } else {
@@ -98,29 +97,22 @@ export default function RiskStatusTrendChart({
       }
     }
 
-    const analyzed = labelsLocal.map((start, idx) => {
-      const end = bucketEnd(start, idx);
-      return risks.filter((r) => {
-        const created = new Date(r.createdAt || Date.now());
-        if (Number.isNaN(created.getTime())) return false;
-        if (created > end) return false;
-        return getRiskStatus(r) === 'perlu-pengukuran';
-      }).length;
+    const datasets = selectedStatuses.map(({ key, label, color }) => {
+      const counts = labelsLocal.map((start, idx) => {
+        const end = bucketEnd(start, idx);
+        return risks.filter((r) => {
+          const created = new Date(r.createdAt || Date.now());
+          if (Number.isNaN(created.getTime())) return false;
+          if (created > end) return false;
+          return getRiskStatus(r) === key;
+        }).length;
+      });
+      return { label, data: counts, color };
     });
 
-    const planned = labelsLocal.map((start, idx) => {
-      const end = bucketEnd(start, idx);
-      return risks.filter((r) => {
-        const created = new Date(r.createdAt || Date.now());
-        if (Number.isNaN(created.getTime())) return false;
-        if (created > end) return false;
-        return getRiskStatus(r) === 'planned';
-      }).length;
-    });
-
-    return { labels: labelsLocal, analyzedCount: analyzed, plannedCount: planned };
+    return { labels: labelsLocal, datasets };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [risks, periodMonths, startMonth, isDaily, clockKey]);
+  }, [risks, periodMonths, startMonth, isDaily, selectedStatuses, clockKey]);
 
   useEffect(() => {
     if (!canvasRef.current) return;
@@ -136,29 +128,17 @@ export default function RiskStatusTrendChart({
     chartRef.current = new Chart(ctx, {
       type: 'line',
       data: {
-        labels,
-        datasets: [
-          {
-            label: 'Analyzed',
-            data: analyzedCount,
-            borderColor: '#0d6efd',
-            backgroundColor: 'rgba(13, 110, 253, 0.12)',
-            fill: true,
-            tension: 0.35,
-            pointRadius: 0,
-            borderWidth: 3,
-          },
-          {
-            label: 'Planned',
-            data: plannedCount,
-            borderColor: '#ffc107',
-            backgroundColor: 'rgba(255, 193, 7, 0.10)',
-            fill: true,
-            tension: 0.35,
-            pointRadius: 0,
-            borderWidth: 3,
-          },
-        ],
+        labels: chartData.labels,
+        datasets: chartData.datasets.map(({ label, data, color }) => ({
+          label,
+          data,
+          borderColor: color,
+          backgroundColor: color + '1f',
+          fill: true,
+          tension: 0.35,
+          pointRadius: 0,
+          borderWidth: 3,
+        })),
       },
       options: {
         responsive: true,
@@ -178,9 +158,9 @@ export default function RiskStatusTrendChart({
                     day: 'numeric',
                     month: 'short',
                     year: 'numeric',
-                  }).format(labels[idx]);
+                  }).format(chartData.labels[idx]);
                 }
-                return fmtDateTitle(labels[idx]);
+                return fmtDateTitle(chartData.labels[idx]);
               },
             },
           },
@@ -192,7 +172,7 @@ export default function RiskStatusTrendChart({
             ticks: {
               color: '#6c757d',
               callback: (_value, index) =>
-                isDaily ? fmtDateTick(labels[index]) : fmtMonthTick(labels[index]),
+                isDaily ? fmtDateTick(chartData.labels[index]) : fmtMonthTick(chartData.labels[index]),
               maxTicksLimit: isDaily ? 31 : undefined,
             },
           },
@@ -217,7 +197,7 @@ export default function RiskStatusTrendChart({
         chartRef.current = null;
       }
     };
-  }, [labels, analyzedCount, plannedCount, isDaily]);
+  }, [chartData, isDaily]);
 
   return (
     <div className="relative w-full" style={{ height }}>

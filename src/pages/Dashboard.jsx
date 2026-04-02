@@ -42,16 +42,36 @@ export default function Dashboard() {
   // RiskMatrix score mode: 'inherent' | 'current' | 'residual'
   const [matrixScoreMode, setMatrixScoreMode] = useState('inherent');
 
-  // StatusBar filter state — date-range mode (max 6 months)
+  // StatusBar filter state — date-range mode (max 6 months), persisted in localStorage
   const [startMonth, setStartMonth] = useState(() => {
+    try {
+      const saved = localStorage.getItem('dashboard_startMonth');
+      if (saved) return JSON.parse(saved);
+    } catch { /* ignore */ }
     const now = new Date();
     return { year: now.getFullYear(), month: now.getMonth() };
   });
   const [endMonth, setEndMonth] = useState(() => {
+    try {
+      const saved = localStorage.getItem('dashboard_endMonth');
+      if (saved) return JSON.parse(saved);
+    } catch { /* ignore */ }
     const now = new Date();
     return { year: now.getFullYear(), month: now.getMonth() };
   });
+
+  useEffect(() => { localStorage.setItem('dashboard_startMonth', JSON.stringify(startMonth)); }, [startMonth]);
+  useEffect(() => { localStorage.setItem('dashboard_endMonth', JSON.stringify(endMonth)); }, [endMonth]);
   const [branchFilter, setBranchFilter] = useState('all');
+
+  // Risk Status chart — default Mitigate + Monitor, max 3 selected
+  const [selectedStatuses, setSelectedStatuses] = useState(['mitigate', 'monitor']);
+  const toggleStatusChart = (key) => {
+    setSelectedStatuses((prev) => {
+      if (prev.includes(key)) return prev.length <= 1 ? prev : prev.filter((k) => k !== key);
+      return prev.length >= 3 ? prev : [...prev, key];
+    });
+  };
 
   // Derive periodMonths so charts still work (1 = daily view, >1 = monthly buckets)
   const periodMonths = (endMonth.year - startMonth.year) * 12 + (endMonth.month - startMonth.month) + 1;
@@ -138,6 +158,15 @@ export default function Dashboard() {
       colors: statusSummary.map((x) => x.color),
     };
   }, [statusSummary]);
+
+  const selectedStatusData = useMemo(
+    () => selectedStatuses.map((key) => ({
+      key,
+      label: RISK_STATUS_CONFIG[key]?.label || key,
+      color: STATUS_COLORS[key] || '#6c757d',
+    })),
+    [selectedStatuses],
+  );
 
   // Category distribution — all roles, reads from actual risk data
   const categorySummary = useMemo(() => {
@@ -307,14 +336,12 @@ export default function Dashboard() {
         collapsible
         headerExtra={
           <div className="hidden sm:flex items-center gap-3 text-sm text-gray-600 dark:text-gray-300">
-            <span className="inline-flex items-center gap-2">
-              <span className="h-2 w-2 rounded-full bg-[#0d6efd]" />
-              Analyzed
-            </span>
-            <span className="inline-flex items-center gap-2">
-              <span className="h-2 w-2 rounded-full bg-[#ffc107]" />
-              Planned
-            </span>
+            {selectedStatusData.map((s) => (
+              <span key={s.key} className="inline-flex items-center gap-2">
+                <span className="h-2 w-2 rounded-full" style={{ backgroundColor: s.color }} />
+                {s.label}
+              </span>
+            ))}
           </div>
         }
       >
@@ -323,7 +350,7 @@ export default function Dashboard() {
             <p className="text-center text-sm font-semibold text-gray-700 dark:text-gray-200 mb-2">
               Risk Status
             </p>
-            <RiskStatusTrendChart risks={filteredRisks} height={220} periodMonths={periodMonths} startMonth={startMonth} />
+            <RiskStatusTrendChart risks={filteredRisks} height={220} periodMonths={periodMonths} startMonth={startMonth} selectedStatuses={selectedStatusData} />
           </div>
           <div className="lg:col-span-4">
             <p className="text-center text-sm font-semibold text-gray-700 dark:text-gray-200">
@@ -340,16 +367,32 @@ export default function Dashboard() {
           </div>
         </div>
 
-        {/* Bottom separator + status legend */}
+        {/* Bottom separator + status legend (clickable to toggle chart lines, max 3) */}
         <div className="mt-4 pt-3 border-t border-gray-200 dark:border-gray-700">
-          <div className="flex flex-wrap gap-x-5 gap-y-2">
-            {statusSummary.map((x) => (
-              <div key={x.key} className="inline-flex items-center gap-1.5 text-xs">
-                <span className="h-2 w-2 rounded-full shrink-0" style={{ backgroundColor: x.color }} />
-                <span className="text-gray-700 dark:text-gray-200">{x.label}</span>
-                <span className="font-semibold text-gray-900 dark:text-white">({x.count})</span>
-              </div>
-            ))}
+          <div className="flex flex-wrap gap-x-3 gap-y-2">
+            {statusSummary.map((x) => {
+              const isSelected = selectedStatuses.includes(x.key);
+              const atMax = selectedStatuses.length >= 3 && !isSelected;
+              return (
+                <button
+                  key={x.key}
+                  type="button"
+                  onClick={() => toggleStatusChart(x.key)}
+                  className={`inline-flex items-center gap-1.5 text-xs rounded px-1.5 py-0.5 transition-colors select-none ${
+                    isSelected
+                      ? 'cursor-pointer bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 ring-1 ring-blue-400 dark:ring-blue-500'
+                      : atMax
+                        ? 'cursor-not-allowed text-gray-400 dark:text-gray-500 opacity-50'
+                        : 'cursor-pointer text-gray-700 dark:text-gray-200 hover:text-gray-900 dark:hover:text-white'
+                  }`}
+                  title={isSelected ? 'Klik untuk sembunyikan dari grafik' : atMax ? 'Maksimal 3 status' : 'Klik untuk tampilkan di grafik'}
+                >
+                  <span className="h-2 w-2 rounded-full shrink-0" style={{ backgroundColor: x.color }} />
+                  <span>{x.label}</span>
+                  <span className="font-semibold">({x.count})</span>
+                </button>
+              );
+            })}
           </div>
         </div>
       </Card>
