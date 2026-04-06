@@ -43,11 +43,19 @@ function pickScore(risk, scoreMode) {
     };
   }
   if (scoreMode === 'residual') {
-    return {
-      score: Number(risk.residualScore ?? risk.measurement?.residualScore ?? 0),
-      impact: risk.residualImpactLevel ?? risk.measurement?.residualImpactLevel ?? 0,
-      possibility: risk.residualPossibilityType ?? risk.measurement?.residualPossibilityType ?? 0,
-    };
+    const m = risk.measurement;
+    for (const q of ['Q4', 'Q3', 'Q2', 'Q1']) {
+      const imp = m?.[`residualImpactLevel${q}`];
+      const pos = m?.[`residualPossibilityType${q}`];
+      if (imp && pos) {
+        return {
+          score: Number(m?.[`residualScore${q}`] ?? 0),
+          impact: imp,
+          possibility: pos,
+        };
+      }
+    }
+    return { score: 0, impact: 0, possibility: 0 };
   }
   // inherent (default)
   return {

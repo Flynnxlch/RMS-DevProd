@@ -152,7 +152,15 @@ export default function RiskTrendChart({
 
     const residualScoreAvg = labelsLocal.map((startDate, idx) => {
       const end = bucketEnd(startDate, idx);
-      const getResidual = (r) => r.residualScoreFinal || r.residualScore || r.measurement?.residualScore || 0;
+      const getResidual = (r) => {
+        const m = r.measurement;
+        for (const q of ['Q4', 'Q3', 'Q2', 'Q1']) {
+          const imp = m?.[`residualImpactLevel${q}`];
+          const pos = m?.[`residualPossibilityType${q}`];
+          if (imp && pos) return m?.[`residualScore${q}`] || 0;
+        }
+        return 0;
+      };
       const active = risks.filter((r) => {
         if (getResidual(r) <= 0) return false;
         const anchor = new Date(r.riskDate || r.createdAt || Date.now());

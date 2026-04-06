@@ -613,6 +613,14 @@ export default function RiskDetail() {
         const m = risk.measurement;
         const impactLabels = ['', 'Rendah', 'Rendah - Menengah', 'Menengah', 'Menengah - Tinggi', 'Tinggi'];
         const possibilityLabels = ['', 'Sangat Jarang Terjadi', 'Jarang Terjadi', 'Bisa Terjadi', 'Sangat Mungkin Terjadi', 'Hampir Pasti Terjadi'];
+        const QUARTER_RATES_DISPLAY = [10, 8, 7, 6];
+        const QUARTER_SUFFIXES = ['Q1', 'Q2', 'Q3', 'Q4'];
+        const QUARTER_LABELS_DISPLAY = [
+          'Q1 (Januari – Maret)',
+          'Q2 (April – Juni)',
+          'Q3 (Juli – September)',
+          'Q4 (Oktober – Desember)',
+        ];
         return (
           <div className="space-y-6">
             {user?.userRole === 'RISK_ASSESSMENT' && (
@@ -627,6 +635,7 @@ export default function RiskDetail() {
                 </button>
               </div>
             )}
+
             {/* Section A */}
             <div className="border border-gray-200 dark:border-gray-700 rounded-lg p-4 bg-gray-50 dark:bg-gray-800/40">
               <h3 className="text-sm font-semibold text-gray-900 dark:text-white mb-4">Section A: Risk Treatment Option</h3>
@@ -636,85 +645,135 @@ export default function RiskDetail() {
               </div>
             </div>
 
-            {/* Section B */}
+            {/* Section B: Risiko Inherent */}
             <div className="border border-gray-200 dark:border-gray-700 rounded-lg p-4 bg-gray-50 dark:bg-gray-800/40">
-              <h3 className="text-sm font-semibold text-gray-900 dark:text-white mb-4">Section B: Pengukuran Risiko</h3>
-              <div className="space-y-6">
-                {/* Inherent Risk */}
-                <div className="border-l-4 border-blue-500 pl-4">
-                  <h4 className="text-sm font-semibold text-gray-900 dark:text-white mb-3">Inherent Risk (Risiko awal sebelum adanya kontrol)</h4>
-                  <div className="space-y-4">
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      <div>
-                        <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-1">Tingkat Dampak</label>
-                        <p className="text-sm text-gray-900 dark:text-white">
-                          {m?.impactLevel ? `${m.impactLevel} — ${impactLabels[m.impactLevel] || 'N/A'}` : 'N/A'}
-                        </p>
-                      </div>
-                      <div>
-                        <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-1">Deskripsi Dampak</label>
-                        <p className="text-sm text-gray-900 dark:text-white whitespace-pre-wrap">{m?.impactDescription || 'N/A'}</p>
-                      </div>
-                    </div>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      <div>
-                        <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-1">Tingkat Kemungkinan</label>
-                        <p className="text-sm text-gray-900 dark:text-white">
-                          {m?.possibilityType ? `${m.possibilityType} — ${possibilityLabels[m.possibilityType] || 'N/A'}` : 'N/A'}
-                        </p>
-                      </div>
-                      <div>
-                        <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-1">Deskripsi Kemungkinan</label>
-                        <p className="text-sm text-gray-900 dark:text-white whitespace-pre-wrap">{m?.possibilityDescription || 'N/A'}</p>
-                      </div>
-                    </div>
-                    {m?.inherentScore > 0 && (
-                      <div className="flex items-center gap-3 p-3 bg-white dark:bg-gray-800/50 rounded-lg border border-gray-200 dark:border-gray-700">
-                        <span className="text-sm font-semibold text-gray-700 dark:text-gray-300">Tingkat Risiko Inheren:</span>
-                        <RiskLevelBadge score={m.inherentScore} />
-                        <span className="text-sm font-bold text-gray-900 dark:text-white">{m.inherentScore}/25</span>
-                      </div>
-                    )}
+              <h3 className="text-sm font-semibold text-gray-900 dark:text-white mb-4">
+                Section B: Pengukuran Risiko — Risiko Inherent
+              </h3>
+              <div className="border-l-4 border-blue-500 pl-4 space-y-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-1">Tingkat Dampak</label>
+                    <p className="text-sm text-gray-900 dark:text-white">
+                      {m?.impactLevel ? `${m.impactLevel} — ${impactLabels[m.impactLevel] || 'N/A'}` : 'N/A'}
+                    </p>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-1">Deskripsi Dampak</label>
+                    <p className="text-sm text-gray-900 dark:text-white whitespace-pre-wrap">{m?.impactDescription || 'N/A'}</p>
                   </div>
                 </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-1">Tingkat Kemungkinan</label>
+                    <p className="text-sm text-gray-900 dark:text-white">
+                      {m?.possibilityType ? `${m.possibilityType} — ${possibilityLabels[m.possibilityType] || 'N/A'}` : 'N/A'}
+                    </p>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-1">Deskripsi Kemungkinan</label>
+                    <p className="text-sm text-gray-900 dark:text-white whitespace-pre-wrap">{m?.possibilityDescription || 'N/A'}</p>
+                  </div>
+                </div>
+                {m?.inherentScore > 0 && (
+                  <div className="flex items-center gap-3 p-3 bg-white dark:bg-gray-800/50 rounded-lg border border-gray-200 dark:border-gray-700">
+                    <span className="text-sm font-semibold text-gray-700 dark:text-gray-300">Tingkat Risiko Inheren:</span>
+                    <RiskLevelBadge score={m.inherentScore} />
+                    <span className="text-sm font-bold text-gray-900 dark:text-white">{m.inherentScore}/25</span>
+                  </div>
+                )}
+              </div>
+            </div>
 
-                {/* Residual Risk */}
-                <div className="border-l-4 border-green-500 pl-4">
-                  <h4 className="text-sm font-semibold text-gray-900 dark:text-white mb-3">Residual Risk (Risiko yang diharapkan setelah kontrol)</h4>
-                  <div className="space-y-4">
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      <div>
-                        <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-1">Tingkat Dampak Residual</label>
-                        <p className="text-sm text-gray-900 dark:text-white">
-                          {m?.residualImpactLevel ? `${m.residualImpactLevel} — ${impactLabels[m.residualImpactLevel] || 'N/A'}` : 'N/A'}
-                        </p>
-                      </div>
-                      <div>
-                        <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-1">Deskripsi Dampak Residual</label>
-                        <p className="text-sm text-gray-900 dark:text-white whitespace-pre-wrap">{m?.residualImpactDescription || 'N/A'}</p>
-                      </div>
+            {/* Section C: Risiko Residual */}
+            <div className="border border-gray-200 dark:border-gray-700 rounded-lg p-4 bg-gray-50 dark:bg-gray-800/40">
+              <h3 className="text-sm font-semibold text-gray-900 dark:text-white mb-4">Section C: Risiko Residual</h3>
+
+              {/* Unit Risiko */}
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between p-3 bg-gray-50 dark:bg-gray-800/50 rounded-lg border border-gray-200 dark:border-gray-700 gap-2 mb-6">
+                <span className="text-sm font-semibold text-gray-700 dark:text-gray-300">Unit Risiko</span>
+                <span className="text-sm font-bold text-gray-900 dark:text-white">
+                  {m?.unitRisiko != null
+                    ? `Rp ${m.unitRisiko.toLocaleString('id-ID', { maximumFractionDigits: 2 })}`
+                    : 'N/A'}
+                </span>
+              </div>
+
+              {/* Q1–Q4 subsections */}
+              <div className="space-y-4">
+                {QUARTER_SUFFIXES.map((q, i) => {
+                  const impLvl      = m?.[`residualImpactLevel${q}`];
+                  const possLvl     = m?.[`residualPossibilityType${q}`];
+                  const probRaw     = m?.[`nilaiProbabilitas${q}`];
+                  const probDisplay = m?.[`nilaiProbDisplay${q}`];
+                  const score       = m?.[`residualScore${q}`];
+                  const nilaiDampak = m?.[`nilaiDampak${q}`];
+                  const nilaiEks    = m?.[`nilaiEksposure${q}`];
+                  const hasData     = impLvl || possLvl;
+
+                  return (
+                    <div key={q} className="border border-gray-200 dark:border-gray-600 rounded-lg p-4 bg-white dark:bg-gray-800/30">
+                      <h4 className="text-sm font-bold text-gray-800 dark:text-gray-100 mb-4">{QUARTER_LABELS_DISPLAY[i]}</h4>
+
+                      {!hasData ? (
+                        <p className="text-sm text-gray-400 dark:text-gray-500 italic">Belum diisi</p>
+                      ) : (
+                        <div className="space-y-4">
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div>
+                              <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-1">Tingkat Dampak Residual</label>
+                              <p className="text-sm text-gray-900 dark:text-white">
+                                {impLvl ? `${impLvl} — ${impactLabels[impLvl] || 'N/A'}` : 'N/A'}
+                              </p>
+                            </div>
+                            <div>
+                              <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-1">Tingkat Kemungkinan Residual</label>
+                              <p className="text-sm text-gray-900 dark:text-white">
+                                {possLvl ? `${possLvl} — ${possibilityLabels[possLvl] || 'N/A'}` : 'N/A'}
+                              </p>
+                            </div>
+                          </div>
+
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div>
+                              <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-1">
+                                Nilai Dampak Residual
+                              </label>
+                              <p className="text-sm text-gray-900 dark:text-white">
+                                {nilaiDampak != null
+                                  ? nilaiDampak.toLocaleString('id-ID', { maximumFractionDigits: 2 })
+                                  : 'N/A'}
+                              </p>
+                            </div>
+                            <div>
+                              <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-1">Nilai Probabilitas Residual</label>
+                              <p className="text-sm text-gray-900 dark:text-white">
+                                {probRaw != null ? `${probDisplay ?? '—'}%` : 'N/A'}
+                              </p>
+                            </div>
+                          </div>
+
+                          {score > 0 && (
+                            <div className="flex items-center gap-3 p-3 bg-gray-50 dark:bg-gray-800/50 rounded-lg border border-gray-200 dark:border-gray-700">
+                              <span className="text-sm font-semibold text-gray-700 dark:text-gray-300">Tingkat Risiko Residual:</span>
+                              <RiskLevelBadge score={score} />
+                              <span className="text-sm font-bold text-gray-900 dark:text-white">{score}/25</span>
+                            </div>
+                          )}
+
+                          {nilaiEks != null && (
+                            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between p-3 bg-green-50 dark:bg-green-900/20 rounded-lg border border-green-200 dark:border-green-800 gap-2">
+                              <span className="text-sm font-semibold text-gray-700 dark:text-gray-300">Nilai Eksposure</span>
+                              <span className="text-sm font-bold text-gray-900 dark:text-white">
+                                Rp {nilaiEks.toLocaleString('id-ID', { maximumFractionDigits: 2 })}
+                              </span>
+                            </div>
+                          )}
+                        </div>
+                      )}
                     </div>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      <div>
-                        <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-1">Tingkat Kemungkinan Residual</label>
-                        <p className="text-sm text-gray-900 dark:text-white">
-                          {m?.residualPossibilityType ? `${m.residualPossibilityType} — ${possibilityLabels[m.residualPossibilityType] || 'N/A'}` : 'N/A'}
-                        </p>
-                      </div>
-                      <div>
-                        <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-1">Deskripsi Kemungkinan Residual</label>
-                        <p className="text-sm text-gray-900 dark:text-white whitespace-pre-wrap">{m?.residualPossibilityDescription || 'N/A'}</p>
-                      </div>
-                    </div>
-                    {m?.residualScore > 0 && (
-                      <div className="flex items-center gap-3 p-3 bg-white dark:bg-gray-800/50 rounded-lg border border-gray-200 dark:border-gray-700">
-                        <span className="text-sm font-semibold text-gray-700 dark:text-gray-300">Tingkat Risiko Residual:</span>
-                        <RiskLevelBadge score={m.residualScore} />
-                        <span className="text-sm font-bold text-gray-900 dark:text-white">{m.residualScore}/25</span>
-                      </div>
-                    )}
-                  </div>
-                </div>
+                  );
+                })}
               </div>
             </div>
           </div>
