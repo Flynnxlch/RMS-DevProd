@@ -333,6 +333,7 @@ export const riskController = {
             currentProbabilityType: risk.mitigation.currentProbabilityType,
             currentScore: risk.mitigation.currentScore,
             currentLevel: risk.mitigation.currentLevel,
+            currentScoreSetAt: risk.mitigation.currentScoreSetAt?.toISOString(),
             plannedAt: risk.mitigation.plannedAt?.toISOString(),
           }),
           // Include latest evaluation
@@ -583,6 +584,7 @@ export const riskController = {
           currentProbabilityType: risk.mitigation.currentProbabilityType,
           currentScore: risk.mitigation.currentScore,
           currentLevel: risk.mitigation.currentLevel,
+          currentScoreSetAt: risk.mitigation.currentScoreSetAt?.toISOString(),
           plannedAt: risk.mitigation.plannedAt?.toISOString(),
         }),
         evaluations: risk.evaluations.map(evaluation => ({
@@ -1165,6 +1167,14 @@ export const riskController = {
         );
       }
 
+      // Determine currentScoreSetAt: stamp once on first-ever set, preserve on edits, clear when removed
+      const existingMitigation = await prisma.riskMitigation.findUnique({ where: { riskId } });
+      const newCurrentScore = currentScore !== undefined ? Number(currentScore) : null;
+      const currentScoreSetAt =
+        newCurrentScore && newCurrentScore > 0
+          ? (existingMitigation?.currentScore > 0 ? existingMitigation.currentScoreSetAt : new Date())
+          : null;
+
       // Upsert mitigation
       const mitigation = await prisma.riskMitigation.upsert({
         where: { riskId },
@@ -1184,6 +1194,7 @@ export const riskController = {
           currentProbabilityType: currentProbabilityType !== undefined ? Number(currentProbabilityType) : null,
           currentScore: currentScore !== undefined ? Number(currentScore) : null,
           currentLevel: currentLevel || null,
+          currentScoreSetAt,
           plannedAt: new Date(),
         },
         create: {
@@ -1203,6 +1214,7 @@ export const riskController = {
           currentProbabilityType: currentProbabilityType !== undefined ? Number(currentProbabilityType) : null,
           currentScore: currentScore !== undefined ? Number(currentScore) : null,
           currentLevel: currentLevel || null,
+          currentScoreSetAt,
           plannedAt: new Date(),
         },
       });

@@ -259,6 +259,7 @@ model RiskMitigation {
   currentProbabilityType      Int?     @map("current_probability_type")
   currentScore                Int?     @map("current_score")
   currentLevel                String?   @map("current_level") @db.VarChar(50)
+  currentScoreSetAt           DateTime? @map("current_score_set_at")
 
   plannedAt                   DateTime? @map("planned_at")
   createdAt                   DateTime  @default(now()) @map("created_at")
