@@ -468,7 +468,7 @@ export default function RiskDetail() {
             <div className="space-y-4">
               <div>
                 <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-1">Jenis Penanganan</label>
-                <p className="text-sm text-gray-900 dark:text-white">{risk.mitigationHandlingType || 'N/A'}</p>
+                <p className="text-sm text-gray-900 dark:text-white">{risk.handlingType || risk.mitigationHandlingType || 'N/A'}</p>
               </div>
               <div>
                 <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-1">Rencana Mitigasi Risiko</label>

@@ -1151,10 +1151,10 @@ export const riskController = {
         );
       }
 
-      // Only RISK_OFFICER and RISK_CHAMPION can create/update mitigations
-      if (!['RISK_OFFICER', 'RISK_CHAMPION'].includes(user.userRole)) {
+      // Only RISK_OFFICER, RISK_CHAMPION, and RISK_ASSESSMENT can create/update mitigations
+      if (!['RISK_OFFICER', 'RISK_CHAMPION', 'RISK_ASSESSMENT'].includes(user.userRole)) {
         return new Response(
-          JSON.stringify({ error: 'Access denied. Only Risk Officer and Risk Champion can manage mitigation plans.' }),
+          JSON.stringify({ error: 'Access denied. Only Risk Officer, Risk Champion, and Risk Assessment can manage mitigation plans.' }),
           { status: 403, headers: { 'Content-Type': 'application/json' } }
         );
       }
