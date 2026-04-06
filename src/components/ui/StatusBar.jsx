@@ -1,41 +1,4 @@
-const MONTH_NAMES = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-
-const MAX_RANGE_MONTHS = 6; // inclusive span (Jan–Jun = 6)
-
-function buildMonthOptions() {
-  const options = [];
-  const now = new Date();
-  let year = 2025;
-  let month = 0; // Jan 2025
-
-  while (year < now.getFullYear() || (year === now.getFullYear() && month <= now.getMonth())) {
-    options.push({
-      value: `${year}-${month}`,
-      label: `${MONTH_NAMES[month]} '${String(year).slice(2)}`,
-      year,
-      month,
-    });
-    month += 1;
-    if (month > 11) {
-      month = 0;
-      year += 1;
-    }
-  }
-  return options;
-}
-
-/** Add `n` months to a {year, month} object */
-function addMonths(ym, n) {
-  const total = ym.year * 12 + ym.month + n;
-  return { year: Math.floor(total / 12), month: total % 12 };
-}
-
-/** Compare two {year, month} — returns negative / 0 / positive */
-function cmpMonths(a, b) {
-  return (a.year * 12 + a.month) - (b.year * 12 + b.month);
-}
-
-const ALL_MONTH_OPTIONS = buildMonthOptions();
+const MONTH_NAMES = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
 
 const selectClass =
   'rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 px-3 py-1.5 text-sm text-gray-700 dark:text-gray-200 focus:outline-none focus:ring-2 focus:ring-[#0c9361] dark:focus:ring-[#0c9361] transition-colors';
@@ -51,90 +14,87 @@ export default function StatusBar({
   showBranchFilter = false,
 }) {
   const now = new Date();
-  const currentMonth = { year: now.getFullYear(), month: now.getMonth() };
+  const currentYear = now.getFullYear();
+  const currentMonthIdx = now.getMonth();
 
-  // Max allowed end = start + (MAX_RANGE_MONTHS - 1), clamped to current month
-  const rawMax = addMonths(startMonth, MAX_RANGE_MONTHS - 1);
-  const maxEnd = cmpMonths(rawMax, currentMonth) > 0 ? currentMonth : rawMax;
+  // Single shared year — always taken from startMonth
+  const sharedYear = startMonth.year;
 
-  // Options for Akhir: startMonth ≤ option ≤ maxEnd
-  const endOptions = ALL_MONTH_OPTIONS.filter(
-    (o) => cmpMonths(o, startMonth) >= 0 && cmpMonths(o, maxEnd) <= 0
-  );
+  // Year options: 2025 to current year
+  const years = [];
+  for (let y = 2025; y <= currentYear; y++) years.push(y);
 
-  function handleStartChange(e) {
-    const opt = ALL_MONTH_OPTIONS.find((o) => o.value === e.target.value);
-    if (!opt) return;
-    const newStart = { year: opt.year, month: opt.month };
-    onStartMonthChange(newStart);
+  // Max month index valid for the shared year
+  const maxMonth = sharedYear === currentYear ? currentMonthIdx : 11;
 
-    // Clamp endMonth into [newStart, newStart+5] ∩ [*, currentMonth]
-    const newRawMax = addMonths(newStart, MAX_RANGE_MONTHS - 1);
-    const newMax = cmpMonths(newRawMax, currentMonth) > 0 ? currentMonth : newRawMax;
-    if (cmpMonths(endMonth, newStart) < 0) {
-      onEndMonthChange(newStart);
-    } else if (cmpMonths(endMonth, newMax) > 0) {
-      onEndMonthChange(newMax);
-    }
+  // Available months for Mulai: 0 to maxMonth
+  const startMonths = Array.from({ length: maxMonth + 1 }, (_, i) => i);
+
+  // Available months for Akhir: startMonth.month to maxMonth
+  const endMonths = Array.from({ length: maxMonth - startMonth.month + 1 }, (_, i) => startMonth.month + i);
+
+  function handleYearChange(e) {
+    const y = parseInt(e.target.value, 10);
+    const newMax = y === currentYear ? currentMonthIdx : 11;
+    const newStartM = Math.min(startMonth.month, newMax);
+    const newEndM = Math.min(Math.max(endMonth.month, newStartM), newMax);
+    onStartMonthChange({ year: y, month: newStartM });
+    onEndMonthChange({ year: y, month: newEndM });
   }
 
-  function handleEndChange(e) {
-    const opt = ALL_MONTH_OPTIONS.find((o) => o.value === e.target.value);
-    if (opt) onEndMonthChange({ year: opt.year, month: opt.month });
+  function handleStartMonthChange(e) {
+    const m = parseInt(e.target.value, 10);
+    onStartMonthChange({ year: sharedYear, month: m });
+    if (endMonth.month < m) onEndMonthChange({ year: sharedYear, month: m });
   }
 
-  const startValue = `${startMonth.year}-${startMonth.month}`;
-  const endValue   = `${endMonth.year}-${endMonth.month}`;
+  function handleEndMonthChange(e) {
+    const m = parseInt(e.target.value, 10);
+    onEndMonthChange({ year: sharedYear, month: m });
+  }
 
   const rangeLabel =
-    startValue === endValue
-      ? `${MONTH_NAMES[startMonth.month]} '${String(startMonth.year).slice(2)}`
-      : `${MONTH_NAMES[startMonth.month]} '${String(startMonth.year).slice(2)} – ${MONTH_NAMES[endMonth.month]} '${String(endMonth.year).slice(2)}`;
+    startMonth.month === endMonth.month
+      ? `${MONTH_NAMES[startMonth.month]} ${sharedYear}`
+      : `${MONTH_NAMES[startMonth.month]} – ${MONTH_NAMES[endMonth.month]} ${sharedYear}`;
 
   return (
     <div className="mb-4 rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/60 px-4 py-3 shadow-sm">
-      <div className="flex flex-wrap items-center gap-3">
+      <div className="flex flex-wrap items-start gap-3">
+
+        {/* Tahun — shared for both Mulai and Akhir */}
+        <div className="flex flex-col gap-1">
+          <label className="text-xs font-medium text-gray-500 dark:text-gray-400">Tahun</label>
+          <select value={sharedYear} onChange={handleYearChange} className={selectClass}>
+            {years.map((y) => (
+              <option key={y} value={y}>{y}</option>
+            ))}
+          </select>
+        </div>
+
         {/* Mulai */}
-        <div className="flex items-center gap-2">
-          <label className="text-xs font-medium text-gray-500 dark:text-gray-400 whitespace-nowrap" htmlFor="status-bar-start">
-            Mulai
-          </label>
-          <select
-            id="status-bar-start"
-            value={startValue}
-            onChange={handleStartChange}
-            className={selectClass}
-          >
-            {ALL_MONTH_OPTIONS.map((opt) => (
-              <option key={opt.value} value={opt.value}>
-                {opt.label}
-              </option>
+        <div className="flex flex-col gap-1">
+          <label className="text-xs font-medium text-gray-500 dark:text-gray-400">Mulai</label>
+          <select value={startMonth.month} onChange={handleStartMonthChange} className={selectClass}>
+            {startMonths.map((m) => (
+              <option key={m} value={m}>{MONTH_NAMES[m]}</option>
             ))}
           </select>
         </div>
 
         {/* Akhir */}
-        <div className="flex items-center gap-2">
-          <label className="text-xs font-medium text-gray-500 dark:text-gray-400 whitespace-nowrap" htmlFor="status-bar-end">
-            Akhir
-          </label>
-          <select
-            id="status-bar-end"
-            value={endValue}
-            onChange={handleEndChange}
-            className={selectClass}
-          >
-            {endOptions.map((opt) => (
-              <option key={opt.value} value={opt.value}>
-                {opt.label}
-              </option>
+        <div className="flex flex-col gap-1">
+          <label className="text-xs font-medium text-gray-500 dark:text-gray-400">Akhir</label>
+          <select value={endMonth.month} onChange={handleEndMonthChange} className={selectClass}>
+            {endMonths.map((m) => (
+              <option key={m} value={m}>{MONTH_NAMES[m]}</option>
             ))}
           </select>
         </div>
 
         {/* Branch filter — Risk Assessment only */}
         {showBranchFilter && (
-          <div className="flex items-center gap-2">
+          <div className="flex flex-col gap-1">
             <label className="text-xs font-medium text-gray-500 dark:text-gray-400 whitespace-nowrap" htmlFor="status-bar-branch">
               Cabang
             </label>
@@ -146,16 +106,14 @@ export default function StatusBar({
             >
               <option value="all">Semua Cabang</option>
               {branchOptions.map((b) => (
-                <option key={b} value={b}>
-                  {b}
-                </option>
+                <option key={b} value={b}>{b}</option>
               ))}
             </select>
           </div>
         )}
 
         {/* Active range label */}
-        <span className="ml-auto text-xs text-gray-400 dark:text-gray-500 hidden sm:block">
+        <span className="ml-auto self-end text-xs text-gray-400 dark:text-gray-500 hidden sm:block pb-1.5">
           {rangeLabel}
         </span>
       </div>

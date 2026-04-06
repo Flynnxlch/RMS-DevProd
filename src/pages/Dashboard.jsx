@@ -4,7 +4,6 @@ import { OtherRequest, UpdatePeraturanTerbaru, UserList, UserRequest } from '../
 import CategoryDistributionChart from '../components/charts/CategoryDistributionChart';
 import DonutChart from '../components/charts/DonutChart';
 import PieChart from '../components/charts/PieChart';
-import RiskStatusTrendChart from '../components/charts/RiskStatusTrendChart';
 import RiskTrendChart from '../components/charts/RiskTrendChart';
 import RiskCardExpandable from '../components/risk/RiskCardExpandable';
 import RiskMatrix from '../components/risk/RiskMatrix';
@@ -62,16 +61,18 @@ export default function Dashboard() {
 
   useEffect(() => { localStorage.setItem('dashboard_startMonth', JSON.stringify(startMonth)); }, [startMonth]);
   useEffect(() => { localStorage.setItem('dashboard_endMonth', JSON.stringify(endMonth)); }, [endMonth]);
+
   const [branchFilter, setBranchFilter] = useState('all');
 
-  // Risk Status chart — default Mitigate + Monitor, max 3 selected
-  const [selectedStatuses, setSelectedStatuses] = useState(['mitigate', 'monitor']);
-  const toggleStatusChart = (key) => {
-    setSelectedStatuses((prev) => {
-      if (prev.includes(key)) return prev.length <= 1 ? prev : prev.filter((k) => k !== key);
+  // Toggleable risk level lines for Indeks Risiko Gapura chart (min 0, max 3)
+  const [selectedLevels, setSelectedLevels] = useState([]);
+  const toggleLevel = (key) => {
+    setSelectedLevels((prev) => {
+      if (prev.includes(key)) return prev.filter((k) => k !== key);
       return prev.length >= 3 ? prev : [...prev, key];
     });
   };
+
 
   // Derive periodMonths so charts still work (1 = daily view, >1 = monthly buckets)
   const periodMonths = (endMonth.year - startMonth.year) * 12 + (endMonth.month - startMonth.month) + 1;
@@ -94,17 +95,30 @@ export default function Dashboard() {
   }, [risks]);
 
   // Risks filtered by the StatusBar date range + branch selections
+  // Matches risks whose "Perkiraan waktu terpapar risiko" overlaps the selected period
   const filteredRisks = useMemo(() => {
-    const start = new Date(startMonth.year, startMonth.month, 1);
-    start.setHours(0, 0, 0, 0);
-    // Last day of endMonth
-    const end = new Date(endMonth.year, endMonth.month + 1, 0);
-    end.setHours(23, 59, 59, 999);
+    const periodStart = new Date(startMonth.year, startMonth.month, 1);
+    periodStart.setHours(0, 0, 0, 0);
+    const periodEnd = new Date(endMonth.year, endMonth.month + 1, 0);
+    periodEnd.setHours(23, 59, 59, 999);
 
     return risks.filter((r) => {
-      const created = new Date(r.riskDate || r.createdAt);
-      if (isNaN(created.getTime())) return true;
-      if (created < start || created > end) return false;
+      const expStart = r.estimatedExposureDate ? new Date(r.estimatedExposureDate) : null;
+      const expEnd = r.estimatedExposureDateEnd ? new Date(r.estimatedExposureDateEnd) : expStart;
+
+      // If no exposure date set, include the risk
+      if (!expStart || isNaN(expStart.getTime())) {
+        if (isAdminPusat && branchFilter !== 'all') {
+          const label = getCabangLabel(r.regionCode) || r.regionCode;
+          if (label !== branchFilter) return false;
+        }
+        return true;
+      }
+
+      // Overlap check: risk interval [expStart, expEnd] overlaps [periodStart, periodEnd]
+      const rEnd = (!expEnd || isNaN(expEnd.getTime())) ? expStart : expEnd;
+      if (expStart > periodEnd || rEnd < periodStart) return false;
+
       if (isAdminPusat && branchFilter !== 'all') {
         const label = getCabangLabel(r.regionCode) || r.regionCode;
         if (label !== branchFilter) return false;
@@ -129,11 +143,11 @@ export default function Dashboard() {
     return filteredRisks.filter((r) => r.evaluationRequested === true).length;
   }, [filteredRisks]);
 
-  // Persentase risiko yang sudah memiliki mitigasi
+  // Persentase risiko berstatus 'Planned' dari total risiko
   const mitigationCoverage = useMemo(() => {
     if (!filteredRisks.length) return 0;
-    const withMitigation = filteredRisks.filter((r) => (r.mitigation || '').trim().length > 0).length;
-    return Math.round((withMitigation / filteredRisks.length) * 100);
+    const planned = filteredRisks.filter((r) => getRiskStatus(r) === 'planned').length;
+    return Math.round((planned / filteredRisks.length) * 100);
   }, [filteredRisks]);
 
   const statusSummary = useMemo(() => {
@@ -158,15 +172,6 @@ export default function Dashboard() {
       colors: statusSummary.map((x) => x.color),
     };
   }, [statusSummary]);
-
-  const selectedStatusData = useMemo(
-    () => selectedStatuses.map((key) => ({
-      key,
-      label: RISK_STATUS_CONFIG[key]?.label || key,
-      color: STATUS_COLORS[key] || '#6c757d',
-    })),
-    [selectedStatuses],
-  );
 
   // Category distribution — all roles, reads from actual risk data
   const categorySummary = useMemo(() => {
@@ -312,10 +317,10 @@ export default function Dashboard() {
 
       {/* KPI Row */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
-        <SmallBox title="Total Risiko" value={String(summary.total)} icon="bi-clipboard-data" color="primary" link="/risks" linkText="Buka register" />
-        <SmallBox title="High Risk" value={String(summary.highPlus)} icon="bi-exclamation-triangle-fill" color="danger" link="/risks" linkText="Tinjau prioritas" />
-        <SmallBox title="Cakupan Mitigasi" value={String(mitigationCoverage)} suffix="%" icon="bi-shield-check" color="success" link="/mitigations" linkText="Lacak tindakan" />
-        <SmallBox title="Evaluasi Keberhasilan" value={String(dueThisMonth)} icon="bi-calendar-check" color="warning" link="/evaluations" linkText="Rencanakan tinjauan" />
+        <SmallBox title="Total Risiko" value={String(summary.total)} icon="bi-clipboard-data" color="primary" />
+        <SmallBox title="High Risk" value={String(summary.highPlus)} icon="bi-exclamation-triangle-fill" color="danger" />
+        <SmallBox title="Planned" value={String(mitigationCoverage)} suffix="%" icon="bi-shield-check" color="success" />
+        <SmallBox title="Evaluasi Keberhasilan" value={String(dueThisMonth)} icon="bi-calendar-check" color="warning" />
       </div>
 
       {/* Status Bar — date range and branch filters */}
@@ -330,27 +335,52 @@ export default function Dashboard() {
         showBranchFilter={isAdminPusat}
       />
 
-      {/* Monthly Recap Report (Open vs Planned) + Distribusi Status Risiko */}
+      {/* Rekapitulasi Risiko — Indeks Risiko Gapura chart + Distribusi Status */}
       <Card
         title="Rekapitulasi Risiko"
         collapsible
         headerExtra={
-          <div className="hidden sm:flex items-center gap-3 text-sm text-gray-600 dark:text-gray-300">
-            {selectedStatusData.map((s) => (
-              <span key={s.key} className="inline-flex items-center gap-2">
-                <span className="h-2 w-2 rounded-full" style={{ backgroundColor: s.color }} />
-                {s.label}
-              </span>
-            ))}
+          <div className="hidden sm:flex items-center gap-2 text-sm text-gray-600 dark:text-gray-300">
+            <span className="inline-flex items-center gap-2">
+              <span className="h-2 w-2 rounded-full bg-[#0d6efd]" />
+              Skor rata-rata
+            </span>
+            <span className="inline-flex items-center gap-2">
+              <span className="h-2 w-2 rounded-full bg-[#20c997]" />
+              Residual Score
+            </span>
+            <span className="w-px h-4 bg-gray-300 dark:bg-gray-600 mx-1" />
+            {[
+              { key: 'high',   label: 'High Risk',   color: '#dc3545' },
+              { key: 'medium', label: 'Medium Risk',  color: '#ffc107' },
+              { key: 'low',    label: 'Low Risk',     color: '#198754' },
+            ].map(({ key, label, color }) => {
+              const isSelected = selectedLevels.includes(key);
+              return (
+                <button
+                  key={key}
+                  type="button"
+                  onClick={() => toggleLevel(key)}
+                  className={`inline-flex items-center gap-1.5 text-xs rounded px-1.5 py-0.5 transition-colors select-none ${
+                    isSelected
+                      ? 'cursor-pointer bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 ring-1 ring-blue-400 dark:ring-blue-500'
+                      : 'cursor-pointer text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'
+                  }`}
+                >
+                  <span className="h-2 w-2 rounded-full shrink-0" style={{ backgroundColor: color }} />
+                  <span>{label}</span>
+                </button>
+              );
+            })}
           </div>
         }
       >
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
           <div className="lg:col-span-8">
             <p className="text-center text-sm font-semibold text-gray-700 dark:text-gray-200 mb-2">
-              Risk Status
+              Indeks Risiko Gapura
             </p>
-            <RiskStatusTrendChart risks={filteredRisks} height={220} periodMonths={periodMonths} startMonth={startMonth} selectedStatuses={selectedStatusData} />
+            <RiskTrendChart risks={filteredRisks} height={220} periodMonths={periodMonths} startMonth={startMonth} selectedLevels={selectedLevels} />
           </div>
           <div className="lg:col-span-4">
             <p className="text-center text-sm font-semibold text-gray-700 dark:text-gray-200">
@@ -367,32 +397,16 @@ export default function Dashboard() {
           </div>
         </div>
 
-        {/* Bottom separator + status legend (clickable to toggle chart lines, max 3) */}
+        {/* Bottom: status legend */}
         <div className="mt-4 pt-3 border-t border-gray-200 dark:border-gray-700">
           <div className="flex flex-wrap gap-x-3 gap-y-2">
-            {statusSummary.map((x) => {
-              const isSelected = selectedStatuses.includes(x.key);
-              const atMax = selectedStatuses.length >= 3 && !isSelected;
-              return (
-                <button
-                  key={x.key}
-                  type="button"
-                  onClick={() => toggleStatusChart(x.key)}
-                  className={`inline-flex items-center gap-1.5 text-xs rounded px-1.5 py-0.5 transition-colors select-none ${
-                    isSelected
-                      ? 'cursor-pointer bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 ring-1 ring-blue-400 dark:ring-blue-500'
-                      : atMax
-                        ? 'cursor-not-allowed text-gray-400 dark:text-gray-500 opacity-50'
-                        : 'cursor-pointer text-gray-700 dark:text-gray-200 hover:text-gray-900 dark:hover:text-white'
-                  }`}
-                  title={isSelected ? 'Klik untuk sembunyikan dari grafik' : atMax ? 'Maksimal 3 status' : 'Klik untuk tampilkan di grafik'}
-                >
-                  <span className="h-2 w-2 rounded-full shrink-0" style={{ backgroundColor: x.color }} />
-                  <span>{x.label}</span>
-                  <span className="font-semibold">({x.count})</span>
-                </button>
-              );
-            })}
+            {statusSummary.map((x) => (
+              <span key={x.key} className="inline-flex items-center gap-1.5 text-xs text-gray-700 dark:text-gray-200">
+                <span className="h-2 w-2 rounded-full shrink-0" style={{ backgroundColor: x.color }} />
+                <span>{x.label}</span>
+                <span className="font-semibold">({x.count})</span>
+              </span>
+            ))}
           </div>
         </div>
       </Card>
@@ -400,25 +414,6 @@ export default function Dashboard() {
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
         {/* Left */}
         <div className="lg:col-span-7 space-y-4">
-          <Card
-            title="Indeks Risiko Gapura"
-            collapsible
-            headerExtra={
-              <div className="hidden sm:flex items-center gap-3 text-sm text-gray-600 dark:text-gray-300">
-                <span className="inline-flex items-center gap-2">
-                  <span className="h-2 w-2 rounded-full bg-[#0d6efd]" />
-                  Skor rata-rata
-                </span>
-                <span className="inline-flex items-center gap-2">
-                  <span className="h-2 w-2 rounded-full bg-[#dc3545]" />
-                  Inherent Risk Ratio
-                </span>
-              </div>
-            }
-          >
-            <RiskTrendChart risks={filteredRisks} height={300} periodMonths={periodMonths} startMonth={startMonth} />
-          </Card>
-
           <Card title="Distribusi Risiko per Kategori" outline color="primary" collapsible>
             <p className="text-center text-xs text-gray-500 dark:text-gray-400 mb-2">
               Total : {summary.total}
@@ -478,7 +473,7 @@ export default function Dashboard() {
           </Card>
 
           {/* Akumulasi Harga Mitigasi */}
-          <Card title="Akumulasi Harga Mitigasi" collapsible>
+          <Card title="Akumulasi Biaya Mitigasi" collapsible>
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
               {/* Left: Data Section */}
               <div className="lg:col-span-2 space-y-4">

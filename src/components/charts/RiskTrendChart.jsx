@@ -46,18 +46,27 @@ function fmtDateTick(dateObj) {
   return `${d.getDate()} ${new Intl.DateTimeFormat('en-GB', { month: 'short' }).format(d)}`;
 }
 
+// Simplified 3-level grouping for the toggleable count lines
+function getRiskGroup(score) {
+  if (!score || score <= 0) return null;
+  if (score <= 11) return 'low';
+  if (score <= 15) return 'medium';
+  return 'high';
+}
+
+// selectedLevels: array of 'high' | 'medium' | 'low' — which count lines to show
 export default function RiskTrendChart({
   risks = [],
   height = 300,
   periodMonths = 1,
   startMonth = (() => { const n = new Date(); return { year: n.getFullYear(), month: n.getMonth() }; })(),
+  selectedLevels = [],
 }) {
   const canvasRef = useRef(null);
   const chartRef = useRef(null);
 
   const isDaily = periodMonths === 1;
 
-  // Clock tick — triggers re-computation when date changes
   const [clockKey, setClockKey] = useState(() => {
     const d = new Date();
     return `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
@@ -73,12 +82,11 @@ export default function RiskTrendChart({
     return () => clearInterval(id);
   }, [isDaily]);
 
-  const { labels, avgScore, inherentRiskRatio } = useMemo(() => {
+  const chartData = useMemo(() => {
     const now = new Date();
     const selYear = startMonth.year;
     const selMonth = startMonth.month;
-    const isCurrentMonth =
-      selYear === now.getFullYear() && selMonth === now.getMonth();
+    const isCurrentMonth = selYear === now.getFullYear() && selMonth === now.getMonth();
 
     let labelsLocal = [];
 
@@ -113,39 +121,63 @@ export default function RiskTrendChart({
       }
     }
 
-    const avg = labelsLocal.map((startDate, idx) => {
+    // Score to use for a risk at a given bucket end:
+    // mirrors Matrix priority — currentScore only after it was first set, inherentScore/score before that.
+    function effectiveScore(r, end) {
+      if (r.currentScore > 0) {
+        if (r.currentScoreSetAt) {
+          const setAt = new Date(r.currentScoreSetAt);
+          if (!Number.isNaN(setAt.getTime()) && setAt <= end) return r.currentScore;
+          // bucket is before currentScore was set — use pre-mitigation score
+          return r.inherentScore || 0;
+        }
+        // legacy data with no currentScoreSetAt: keep original behaviour
+        return r.currentScore;
+      }
+      // no currentScore at all — r.score safely equals the pre-mitigation score
+      return r.score || r.inherentScore || 0;
+    }
+
+    const avgScore = labelsLocal.map((startDate, idx) => {
       const end = bucketEnd(startDate, idx);
       const active = risks.filter((r) => {
-        const created = new Date(r.createdAt || Date.now());
-        if (Number.isNaN(created.getTime())) return false;
-        return created <= end;
+        const created = new Date(r.riskDate || r.createdAt || Date.now());
+        return !Number.isNaN(created.getTime()) && created <= end;
       });
-      const assessed = active.filter((r) => {
-        const score = r.score || r.inherentScore || r.currentScore || r.residualScore || r.residualScoreFinal || 0;
-        return score > 0;
-      });
-      if (!assessed.length) return 0;
-      const sum = assessed.reduce((acc, r) => {
-        const score = r.score || r.inherentScore || r.currentScore || r.residualScore || r.residualScoreFinal || 0;
-        return acc + score;
-      }, 0);
-      return Math.round((sum / assessed.length) * 10) / 10;
+      const scored = active.filter((r) => effectiveScore(r, end) > 0);
+      if (!scored.length) return 0;
+      const sum = scored.reduce((acc, r) => acc + effectiveScore(r, end), 0);
+      return Math.round((sum / scored.length) * 10) / 10;
     });
 
-    const inherentRatio = labelsLocal.map((startDate, idx) => {
+    const residualScoreAvg = labelsLocal.map((startDate, idx) => {
       const end = bucketEnd(startDate, idx);
+      const getResidual = (r) => r.residualScoreFinal || r.residualScore || r.measurement?.residualScore || 0;
       const active = risks.filter((r) => {
-        const created = new Date(r.createdAt || Date.now());
-        if (Number.isNaN(created.getTime())) return false;
-        return created <= end;
+        if (getResidual(r) <= 0) return false;
+        const anchor = new Date(r.riskDate || r.createdAt || Date.now());
+        return !Number.isNaN(anchor.getTime()) && anchor <= end;
       });
-      const withInherent = active.filter((r) => (r.inherentScore || 0) > 0);
-      if (!withInherent.length) return 0;
-      const sum = withInherent.reduce((acc, r) => acc + (r.inherentScore || 0), 0);
-      return Math.round((sum / withInherent.length) * 10) / 10;
+      if (!active.length) return 0;
+      const sum = active.reduce((acc, r) => acc + getResidual(r), 0);
+      return Math.round((sum / active.length) * 10) / 10;
     });
 
-    return { labels: labelsLocal, avgScore: avg, inherentRiskRatio: inherentRatio };
+    function countByGroup(group, idx, startDate) {
+      const end = bucketEnd(startDate, idx);
+      return risks.filter((r) => {
+        const created = new Date(r.riskDate || r.createdAt || Date.now());
+        if (Number.isNaN(created.getTime()) || created > end) return false;
+        const score = r.score || r.inherentScore || r.currentScore || r.residualScore || r.residualScoreFinal || 0;
+        return getRiskGroup(score) === group;
+      }).length;
+    }
+
+    const highCount   = labelsLocal.map((d, i) => countByGroup('high', i, d));
+    const mediumCount = labelsLocal.map((d, i) => countByGroup('medium', i, d));
+    const lowCount    = labelsLocal.map((d, i) => countByGroup('low', i, d));
+
+    return { labels: labelsLocal, avgScore, residualScoreAvg, highCount, mediumCount, lowCount };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [risks, periodMonths, startMonth, isDaily, clockKey]);
 
@@ -164,36 +196,79 @@ export default function RiskTrendChart({
       Chart.register(crosshairPlugin);
     }
 
+    const hasCountLines = selectedLevels.length > 0;
+
+    const datasets = [
+      {
+        label: 'Skor rata-rata',
+        data: chartData.avgScore,
+        yAxisID: 'y',
+        borderColor: '#0d6efd',
+        backgroundColor: 'rgba(13, 110, 253, 0.10)',
+        fill: true,
+        tension: 0.35,
+        pointRadius: 0,
+        borderWidth: 3,
+      },
+      {
+        label: 'Residual Score',
+        data: chartData.residualScoreAvg,
+        yAxisID: 'y',
+        borderColor: '#20c997',
+        backgroundColor: 'rgba(32, 201, 151, 0.08)',
+        fill: false,
+        tension: 0.35,
+        pointRadius: 0,
+        borderWidth: 2,
+      },
+    ];
+
+    if (selectedLevels.includes('high')) {
+      datasets.push({
+        label: 'High Risk',
+        data: chartData.highCount,
+        yAxisID: 'y1',
+        borderColor: '#dc3545',
+        backgroundColor: 'rgba(220, 53, 69, 0.08)',
+        fill: false,
+        tension: 0.35,
+        pointRadius: 0,
+        borderWidth: 2,
+        borderDash: [5, 3],
+      });
+    }
+    if (selectedLevels.includes('medium')) {
+      datasets.push({
+        label: 'Medium Risk',
+        data: chartData.mediumCount,
+        yAxisID: 'y1',
+        borderColor: '#ffc107',
+        backgroundColor: 'rgba(255, 193, 7, 0.08)',
+        fill: false,
+        tension: 0.35,
+        pointRadius: 0,
+        borderWidth: 2,
+        borderDash: [5, 3],
+      });
+    }
+    if (selectedLevels.includes('low')) {
+      datasets.push({
+        label: 'Low Risk',
+        data: chartData.lowCount,
+        yAxisID: 'y1',
+        borderColor: '#198754',
+        backgroundColor: 'rgba(25, 135, 84, 0.08)',
+        fill: false,
+        tension: 0.35,
+        pointRadius: 0,
+        borderWidth: 2,
+        borderDash: [5, 3],
+      });
+    }
+
     chartRef.current = new Chart(ctx, {
       type: 'line',
-      data: {
-        labels,
-        datasets: [
-          {
-            label: 'Avg risk score',
-            data: avgScore,
-            yAxisID: 'y',
-            borderColor: '#0d6efd',
-            backgroundColor: 'rgba(13, 110, 253, 0.10)',
-            fill: true,
-            tension: 0.35,
-            pointRadius: 0,
-            borderWidth: 3,
-          },
-          {
-            label: 'Inherent Risk Ratio',
-            data: inherentRiskRatio,
-            yAxisID: 'y',
-            borderColor: '#dc3545',
-            backgroundColor: 'rgba(220, 53, 69, 0.10)',
-            fill: false,
-            tension: 0.35,
-            pointRadius: 0,
-            borderWidth: 2,
-            borderDash: [6, 4],
-          },
-        ],
-      },
+      data: { labels: chartData.labels, datasets },
       options: {
         responsive: true,
         maintainAspectRatio: false,
@@ -210,12 +285,10 @@ export default function RiskTrendChart({
                 const idx = items?.[0]?.dataIndex ?? 0;
                 if (isDaily) {
                   return new Intl.DateTimeFormat('en-GB', {
-                    day: 'numeric',
-                    month: 'short',
-                    year: 'numeric',
-                  }).format(labels[idx]);
+                    day: 'numeric', month: 'short', year: 'numeric',
+                  }).format(chartData.labels[idx]);
                 }
-                return fmtDateTitle(labels[idx]);
+                return fmtDateTitle(chartData.labels[idx]);
               },
             },
           },
@@ -227,11 +300,12 @@ export default function RiskTrendChart({
             ticks: {
               color: '#6c757d',
               callback: (_value, index) =>
-                isDaily ? fmtDateTick(labels[index]) : fmtMonthTick(labels[index]),
+                isDaily ? fmtDateTick(chartData.labels[index]) : fmtMonthTick(chartData.labels[index]),
               maxTicksLimit: isDaily ? 31 : undefined,
             },
           },
           y: {
+            position: 'left',
             beginAtZero: true,
             suggestedMax: 25,
             grid: { color: 'rgba(0,0,0,0.08)' },
@@ -239,6 +313,19 @@ export default function RiskTrendChart({
             title: {
               display: true,
               text: 'Score',
+              color: '#6c757d',
+              font: { size: 12, weight: '600' },
+            },
+          },
+          y1: {
+            display: hasCountLines,
+            position: 'right',
+            beginAtZero: true,
+            grid: { drawOnChartArea: false },
+            ticks: { color: '#6c757d', precision: 0 },
+            title: {
+              display: hasCountLines,
+              text: 'Count',
               color: '#6c757d',
               font: { size: 12, weight: '600' },
             },
@@ -253,7 +340,7 @@ export default function RiskTrendChart({
         chartRef.current = null;
       }
     };
-  }, [labels, avgScore, inherentRiskRatio, isDaily]);
+  }, [chartData, isDaily, selectedLevels]);
 
   return (
     <div className="relative w-full" style={{ height }}>

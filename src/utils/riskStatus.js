@@ -89,13 +89,13 @@ export const RISK_STATUS_CONFIG = {
     description: 'Skor residual rendah — lanjut dipantau',
   },
   mitigate: {
-    label: 'Mitigate',
+    label: 'Perlu Mitigasi',
     badgeClass:
       'bg-orange-100 text-orange-800 ring-1 ring-inset ring-orange-200 dark:bg-orange-900/30 dark:text-orange-300',
     description: 'Skor residual tinggi — perlu mitigasi lanjutan',
   },
   'need-improvement': {
-    label: 'Need Improvement',
+    label: 'Butuh Penyesuaian',
     badgeClass:
       'bg-pink-100 text-pink-800 ring-1 ring-inset ring-pink-200 dark:bg-pink-900/30 dark:text-pink-300',
     description: 'Mitigasi belum efektif',

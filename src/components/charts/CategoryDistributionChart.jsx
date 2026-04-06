@@ -11,6 +11,11 @@ export default function CategoryDistributionChart({ data = [], height = 220 }) {
   const canvasRef = useRef(null);
   const chartRef = useRef(null);
 
+  const labels = data.map((d) => d.label);
+  const counts = data.map((d) => d.count);
+  const colors = data.map((_, i) => CATEGORY_COLORS[i % CATEGORY_COLORS.length]);
+  const total  = counts.reduce((s, c) => s + c, 0);
+
   useEffect(() => {
     if (!canvasRef.current) return;
 
@@ -21,10 +26,6 @@ export default function CategoryDistributionChart({ data = [], height = 220 }) {
 
     const ctx = canvasRef.current.getContext('2d');
     if (!ctx) return;
-
-    const labels = data.map((d) => d.label);
-    const counts = data.map((d) => d.count);
-    const colors = data.map((_, i) => CATEGORY_COLORS[i % CATEGORY_COLORS.length]);
 
     chartRef.current = new Chart(ctx, {
       type: 'doughnut',
@@ -46,17 +47,7 @@ export default function CategoryDistributionChart({ data = [], height = 220 }) {
         cutout: '62%',
         animation: { duration: 450 },
         plugins: {
-          legend: {
-            display: true,
-            position: 'bottom',
-            labels: {
-              color: '#6c757d',
-              font: { size: 11 },
-              padding: 10,
-              boxWidth: 12,
-              boxHeight: 12,
-            },
-          },
+          legend: { display: false },
           tooltip: {
             backgroundColor: 'rgba(33, 37, 41, 0.92)',
             padding: 10,
@@ -75,11 +66,41 @@ export default function CategoryDistributionChart({ data = [], height = 220 }) {
         chartRef.current = null;
       }
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [data]);
 
   return (
-    <div className="relative w-full" style={{ height }}>
-      <canvas ref={canvasRef} />
+    <div className="flex items-center" style={{ height }}>
+      {/* Donut chart — half width */}
+      <div className="w-1/2 shrink-0" style={{ height }}>
+        <canvas ref={canvasRef} />
+      </div>
+
+      {/* Separator */}
+      <div className="self-stretch w-px bg-gray-200 dark:bg-gray-700 mx-4" />
+
+      {/* Scrollable legend — max 5 rows visible */}
+      <div className="w-1/2 min-w-0 overflow-y-auto" style={{ maxHeight: 5 * 36 }}>
+        <ul className="space-y-1">
+          {labels.map((label, i) => (
+            <li key={label} className="flex items-center gap-2.5 px-1 py-1 rounded hover:bg-gray-50 dark:hover:bg-gray-800/40 transition-colors">
+              <span
+                className="shrink-0 h-3 w-3 rounded-sm"
+                style={{ backgroundColor: colors[i] }}
+              />
+              <span className="flex-1 min-w-0 text-xs text-gray-700 dark:text-gray-300" title={label}>
+                {label.length > 40 ? `${label.slice(0, 40)}...` : label}
+              </span>
+              <span className="shrink-0 text-xs font-semibold text-gray-500 dark:text-gray-400">
+                {counts[i]}
+                <span className="font-normal text-gray-400 dark:text-gray-500 ml-0.5">
+                  ({total > 0 ? Math.round((counts[i] / total) * 100) : 0}%)
+                </span>
+              </span>
+            </li>
+          ))}
+        </ul>
+      </div>
     </div>
   );
 }

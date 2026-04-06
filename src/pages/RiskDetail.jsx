@@ -4,6 +4,7 @@ import { RiskForm } from '../components/form';
 import EvaluationForm from '../components/form/EvaluationForm';
 import MitigationPlanForm from '../components/form/MitigationPlanForm';
 import RiskAnalysisForm from '../components/form/RiskAnalysisForm';
+import RiskMeasurementForm from '../components/form/RiskMeasurementForm';
 import ApprovalPanel from '../components/risk/ApprovalPanel';
 import RiskLevelBadge from '../components/risk/RiskLevelBadge';
 import ContentHeader from '../components/ui/ContentHeader';
@@ -135,6 +136,12 @@ export default function RiskDetail() {
         
         // Refresh risks
         await refreshRisks();
+      } else if (activeTab === 'measurement') {
+        await apiRequest(API_ENDPOINTS.risks.measurement(risk.id), {
+          method: 'POST',
+          body: JSON.stringify(payload),
+        });
+        await refreshRisks();
       } else if (activeTab === 'planning') {
         // Save mitigation via API
         const mitigationPayload = {
@@ -217,7 +224,13 @@ export default function RiskDetail() {
           />
         );
       case 'measurement':
-        return null;
+        return (
+          <RiskMeasurementForm
+            risk={risk}
+            onSubmit={handleEditSubmit}
+            onCancel={handleEditCancel}
+          />
+        );
       case 'evaluation':
         return (
           <EvaluationForm
@@ -602,6 +615,18 @@ export default function RiskDetail() {
         const possibilityLabels = ['', 'Sangat Jarang Terjadi', 'Jarang Terjadi', 'Bisa Terjadi', 'Sangat Mungkin Terjadi', 'Hampir Pasti Terjadi'];
         return (
           <div className="space-y-6">
+            {user?.userRole === 'RISK_ASSESSMENT' && (
+              <div className="flex justify-end mb-4">
+                <button
+                  type="button"
+                  onClick={() => setIsEditModalOpen(true)}
+                  className="inline-flex items-center gap-2 px-4 py-2 text-sm font-semibold text-white bg-[#0d6efd] rounded-lg hover:bg-blue-600 transition-colors"
+                >
+                  <i className="bi bi-pencil"></i>
+                  Edit
+                </button>
+              </div>
+            )}
             {/* Section A */}
             <div className="border border-gray-200 dark:border-gray-700 rounded-lg p-4 bg-gray-50 dark:bg-gray-800/40">
               <h3 className="text-sm font-semibold text-gray-900 dark:text-white mb-4">Section A: Risk Treatment Option</h3>
