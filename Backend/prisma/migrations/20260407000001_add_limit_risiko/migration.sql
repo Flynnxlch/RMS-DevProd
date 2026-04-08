@@ -2,4 +2,4 @@
 -- Used for Kualitatif risk category formula: 1% * limit_risiko * nilaiProbabilitas * tingkatDampak
 
 ALTER TABLE "risk_measurements"
-  ADD COLUMN "limit_risiko" DOUBLE PRECISION NULL;
+  ADD COLUMN IF NOT EXISTS "limit_risiko" DOUBLE PRECISION;
