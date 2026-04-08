@@ -9,7 +9,8 @@ const QUARTER_RATES = [0.10, 0.08, 0.07, 0.06];
  * POST /api/risks/:riskId/measurement
  * Body: {
  *   treatmentOption,
- *   impactLevel, impactDescription, possibilityType, possibilityDescription,
+ *   impactLevel, possibilityType,
+ *   nilaiProbabilitasInherent,
  *   unitRisiko,
  *   residualQuarters: [
  *     { quarter, residualImpactLevel, residualPossibilityType, nilaiProbabilitas },
@@ -52,12 +53,14 @@ export const measurementController = {
       const {
         treatmentOption,
         impactLevel,
-        impactDescription,
         possibilityType,
-        possibilityDescription,
+        nilaiProbabilitasInherent,
         unitRisiko,
+        limitRisiko,
         residualQuarters,
       } = body;
+
+      const isKualitatif = risk.riskCategoryType === 'Kualitatif';
 
       if (!treatmentOption) {
         return new Response(
@@ -81,6 +84,20 @@ export const measurementController = {
 
       // Server-side residual quarter computations
       const unitRisikoNum = unitRisiko != null ? Number(unitRisiko) : null;
+      const limitRisikoNum = limitRisiko != null ? Number(limitRisiko) : null;
+
+      // Server-side inherent nilai computations (Nilai Dampak always unitRisiko * 10%)
+      const nilaiDampakInherent = (unitRisikoNum != null && unitRisikoNum > 0) ? unitRisikoNum * 0.10 : null;
+      const probInherentRaw = nilaiProbabilitasInherent != null ? Number(nilaiProbabilitasInherent) : null;
+      const probInherentValid = probInherentRaw != null && probInherentRaw >= 1 && probInherentRaw <= 12;
+      const nilaiProbDisplayInherent = probInherentValid ? Math.round((probInherentRaw / 12) * 100) : null;
+      // Kualitatif eksposure: 1% * limitRisiko * (nilaiProbabilitas/12) * tingkatDampak
+      // Kuantitatif eksposure: nilaiDampak * (nilaiProbabilitas/12)
+      const nilaiEksposureInherent = probInherentValid
+        ? (isKualitatif && limitRisikoNum != null && limitRisikoNum > 0
+            ? 0.01 * limitRisikoNum * (probInherentRaw / 12) * parsedImpact
+            : (nilaiDampakInherent != null ? nilaiDampakInherent * (probInherentRaw / 12) : null))
+        : null;
 
       const quarters = Array.isArray(residualQuarters) ? residualQuarters : [];
 
@@ -96,11 +113,18 @@ export const measurementController = {
           : null;
         const level = score ? getRiskLevel(score)?.label || null : null;
 
+        // Nilai Dampak always uses unitRisiko * rate (unchanged for both categories)
         const nilaiDampak = (unitRisikoNum != null && unitRisikoNum > 0) ? unitRisikoNum * rate : null;
 
         const probValid = probRaw != null && probRaw >= 1 && probRaw <= 12;
         const nilaiProbDisplay = probValid ? Math.round((probRaw / 12) * 100) : null;
-        const nilaiEksposure = (nilaiDampak != null && probValid) ? nilaiDampak * (probRaw / 12) : null;
+        // Kualitatif eksposure: 1% * limitRisiko * (nilaiProbabilitas/12) * tingkatDampakResidual
+        // Kuantitatif eksposure: nilaiDampak * (nilaiProbabilitas/12)
+        const nilaiEksposure = probValid
+          ? (isKualitatif && limitRisikoNum != null && limitRisikoNum > 0 && impLvl != null && impLvl > 0
+              ? 0.01 * limitRisikoNum * (probRaw / 12) * impLvl
+              : (nilaiDampak != null ? nilaiDampak * (probRaw / 12) : null))
+          : null;
 
         return {
           residualImpactLevel: impLvl,
@@ -121,6 +145,7 @@ export const measurementController = {
 
       const residualData = {
         unitRisiko: unitRisikoNum,
+        limitRisiko: limitRisikoNum,
 
         residualImpactLevelQ1:     q1.residualImpactLevel     ?? null,
         residualPossibilityTypeQ1: q1.residualPossibilityType ?? null,
@@ -165,23 +190,27 @@ export const measurementController = {
         create: {
           riskId,
           treatmentOption,
-          impactDescription: impactDescription || null,
           impactLevel: parsedImpact,
           possibilityType: parsedPossibility,
-          possibilityDescription: possibilityDescription || null,
           inherentScore: computedInherentScore,
           inherentLevel: computedInherentLevel,
+          nilaiProbabilitasInherent: probInherentValid ? probInherentRaw : null,
+          nilaiDampakInherent,
+          nilaiProbDisplayInherent,
+          nilaiEksposureInherent,
           measuredBy: user.id,
           ...residualData,
         },
         update: {
           treatmentOption,
-          impactDescription: impactDescription || null,
           impactLevel: parsedImpact,
           possibilityType: parsedPossibility,
-          possibilityDescription: possibilityDescription || null,
           inherentScore: computedInherentScore,
           inherentLevel: computedInherentLevel,
+          nilaiProbabilitasInherent: probInherentValid ? probInherentRaw : null,
+          nilaiDampakInherent,
+          nilaiProbDisplayInherent,
+          nilaiEksposureInherent,
           measuredBy: user.id,
           measuredAt: new Date(),
           ...residualData,

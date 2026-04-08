@@ -34,6 +34,23 @@ const QUARTER_LABELS = [
   'Q4 (Oktober – Desember)',
 ];
 
+function formatRupiahInput(raw) {
+  if (!raw || raw === '') return '';
+  const parts = raw.split(',');
+  const intNum = parseInt(parts[0], 10);
+  if (isNaN(intNum)) return raw;
+  const formatted = intNum.toLocaleString('id-ID');
+  return 'Rp ' + (parts.length > 1 ? formatted + ',' + parts[1] : formatted);
+}
+
+function handleRupiahChange(rawValue, setter) {
+  const stripped = rawValue.replace(/^Rp\s*/, '').replace(/\./g, '');
+  if (stripped === '' || stripped === '-') { setter(stripped); return; }
+  const cleaned = stripped.replace(/[^0-9,]/g, '');
+  const parts = cleaned.split(',');
+  setter(parts.length > 2 ? parts[0] + ',' + parts.slice(1).join('') : cleaned);
+}
+
 function makeQuarter(existing, suffix) {
   return {
     residualImpactLevel:     existing?.[`residualImpactLevel${suffix}`]  || 0,
@@ -48,17 +65,24 @@ export default function RiskMeasurementForm({ risk, onSubmit, onCancel, isSubmit
   // Section A — Treatment Option
   const [treatmentOption, setTreatmentOption] = useState(existing?.treatmentOption || '');
 
-  // Section B — Inherent Risk (unchanged)
-  const [impactLevel, setImpactLevel] = useState(existing?.impactLevel || 0);
-  const [impactDescription, setImpactDescription] = useState(existing?.impactDescription || '');
-  const [possibilityType, setPossibilityType] = useState(existing?.possibilityType || 0);
-  const [possibilityDescription, setPossibilityDescription] = useState(existing?.possibilityDescription || '');
+  const isKualitatif = risk?.riskCategoryType === 'Kualitatif';
 
-  // Section C — Residual Risk (quarter-based)
-  // Hydrate from DB float → string with ',' as decimal (id-ID style)
+  // Asumsi Perhitungan Dampak — shared between Section B and C
   const [unitRisiko, setUnitRisiko] = useState(
     existing?.unitRisiko != null ? String(existing.unitRisiko).replace('.', ',') : ''
   );
+  const [limitRisiko, setLimitRisiko] = useState(
+    existing?.limitRisiko != null ? String(existing.limitRisiko).replace('.', ',') : ''
+  );
+
+  // Section B — Inherent Risk
+  const [impactLevel, setImpactLevel] = useState(existing?.impactLevel || 0);
+  const [possibilityType, setPossibilityType] = useState(existing?.possibilityType || 0);
+  const [nilaiProbabilitasInherent, setNilaiProbabilitasInherent] = useState(
+    existing?.nilaiProbabilitasInherent != null ? String(existing.nilaiProbabilitasInherent) : ''
+  );
+
+  // Section C — Residual Risk (quarter-based)
   const [quarters, setQuarters] = useState([
     makeQuarter(existing, 'Q1'),
     makeQuarter(existing, 'Q2'),
@@ -76,34 +100,63 @@ export default function RiskMeasurementForm({ risk, onSubmit, onCancel, isSubmit
 
   const inherentLevel = useMemo(() => getRiskLevel(inherentScore), [inherentScore]);
 
+  // Computed: inherent nilai dampak / probabilitas / eksposure
+  const inherentComputed = useMemo(() => {
+    const unitNum = parseFloat(String(unitRisiko).replace(',', '.')) || 0;
+    const limitNum = parseFloat(String(limitRisiko).replace(',', '.')) || 0;
+    const impLvl = Number(impactLevel);
+
+    // Nilai Dampak always uses unitRisiko * 10%
+    const nilaiDampak = unitNum > 0 ? Math.round(unitNum * 0.10) : null;
+
+    const probInput = parseInt(nilaiProbabilitasInherent, 10);
+    const probValid = !isNaN(probInput) && probInput >= 1 && probInput <= 12;
+    const nilaiProbabilitasDisplay = probValid ? Math.round((probInput / 12) * 100) : null;
+    const nilaiProbabilitasRaw = probValid ? probInput / 12 : null;
+
+    // Kualitatif eksposure: 1% * limitRisiko * (prob/12) * tingkatDampak
+    // Kuantitatif eksposure: nilaiDampak * (prob/12)
+    const nilaiEksposure = probValid
+      ? Math.round(isKualitatif && limitNum > 0 && impLvl > 0
+          ? 0.01 * limitNum * nilaiProbabilitasRaw * impLvl
+          : (nilaiDampak !== null ? nilaiDampak * nilaiProbabilitasRaw : 0))
+      : null;
+
+    return { nilaiDampak, nilaiProbabilitasDisplay, nilaiEksposure };
+  }, [unitRisiko, limitRisiko, nilaiProbabilitasInherent, isKualitatif, impactLevel]);
+
   // Per-quarter computed values
   const quarterComputed = useMemo(() => {
     const unitNum = parseFloat(String(unitRisiko).replace(',', '.')) || 0;
+    const limitNum = parseFloat(String(limitRisiko).replace(',', '.')) || 0;
     return quarters.map((q, i) => {
       const rate = QUARTER_RATES[i];
-      const nilaiDampak = unitNum > 0 ? unitNum * rate : null;
+      const impLvl = Number(q.residualImpactLevel);
+      // Nilai Dampak Residual always uses unitRisiko * rate
+      const nilaiDampak = unitNum > 0 ? Math.round(unitNum * rate) : null;
 
       const probInput = parseInt(q.nilaiProbabilitas, 10);
       const probValid = !isNaN(probInput) && probInput >= 1 && probInput <= 12;
+      const nilaiProbabilitasDisplay = probValid ? Math.round(probInput / 12 * 100) : null;
       const nilaiProbabilitasRaw = probValid ? probInput / 12 : null;
-      const nilaiProbabilitasDisplay = nilaiProbabilitasRaw !== null
-        ? Math.round(nilaiProbabilitasRaw * 100)
-        : null;
 
-      const impLvl = Number(q.residualImpactLevel);
       const possLvl = Number(q.residualPossibilityType);
       const score = impLvl > 0 && possLvl > 0
         ? computeRiskScore({ impactLevel: impLvl, possibility: possLvl })
         : null;
       const level = score ? getRiskLevel(score) : null;
 
-      const nilaiEksposure = nilaiDampak !== null && nilaiProbabilitasRaw !== null
-        ? nilaiDampak * nilaiProbabilitasRaw
+      // Kualitatif eksposure: 1% * limitRisiko * (prob/12) * tingkatDampakResidual
+      // Kuantitatif eksposure: nilaiDampak * (prob/12)
+      const nilaiEksposure = probValid
+        ? Math.round(isKualitatif && limitNum > 0 && impLvl > 0
+            ? 0.01 * limitNum * nilaiProbabilitasRaw * impLvl
+            : (nilaiDampak !== null ? nilaiDampak * nilaiProbabilitasRaw : 0))
         : null;
 
       return { nilaiDampak, nilaiProbabilitasDisplay, nilaiProbabilitasRaw, score, level, nilaiEksposure };
     });
-  }, [unitRisiko, quarters]);
+  }, [unitRisiko, limitRisiko, quarters, isKualitatif]);
 
   const updateQuarter = (index, field, value) => {
     setQuarters((prev) => {
@@ -120,12 +173,12 @@ export default function RiskMeasurementForm({ risk, onSubmit, onCancel, isSubmit
     onSubmit?.({
       treatmentOption,
       impactLevel: Number(impactLevel),
-      impactDescription,
       possibilityType: Number(possibilityType),
-      possibilityDescription,
+      nilaiProbabilitasInherent: nilaiProbabilitasInherent !== '' ? Number(nilaiProbabilitasInherent) : null,
       inherentScore,
       inherentLevel: inherentLevel?.label || null,
       unitRisiko: unitRisiko !== '' ? parseFloat(String(unitRisiko).replace(',', '.')) : null,
+      limitRisiko: isKualitatif && limitRisiko !== '' ? parseFloat(String(limitRisiko).replace(',', '.')) : null,
       residualQuarters: quarters.map((q, i) => ({
         quarter: i + 1,
         residualImpactLevel:     Number(q.residualImpactLevel)     || null,
@@ -174,6 +227,45 @@ export default function RiskMeasurementForm({ risk, onSubmit, onCancel, isSubmit
         </div>
       </div>
 
+      {/* Asumsi Perhitungan Dampak — shared, placed between A and B */}
+      <div className="border border-gray-200 dark:border-gray-700 rounded-lg p-4 bg-gray-50 dark:bg-gray-800/40">
+        <h3 className="text-sm font-semibold text-gray-900 dark:text-white mb-4">Asumsi Perhitungan Dampak</h3>
+        <div className="flex flex-col gap-2">
+          <label htmlFor="unit-risiko" className="text-sm font-semibold text-gray-700 dark:text-gray-200">
+            Nilai Anggaran / Unit Risiko
+          </label>
+          <input
+            type="text"
+            inputMode="decimal"
+            id="unit-risiko"
+            className={inputBase}
+            value={formatRupiahInput(unitRisiko)}
+            onChange={(e) => handleRupiahChange(e.target.value, setUnitRisiko)}
+            placeholder="Rp 0"
+          />
+          <p className="text-xs text-gray-400">
+            Digunakan untuk menghitung Nilai Dampak Inheren (×10%) dan Nilai Dampak Residual per kuartal.
+          </p>
+        </div>
+
+        {isKualitatif && (
+          <div className="flex flex-col gap-2 mt-4">
+            <label htmlFor="limit-risiko" className="text-sm font-semibold text-gray-700 dark:text-gray-200">
+              Limit Risiko
+            </label>
+            <input
+              type="text"
+              inputMode="decimal"
+              id="limit-risiko"
+              className={inputBase}
+              value={formatRupiahInput(limitRisiko)}
+              onChange={(e) => handleRupiahChange(e.target.value, setLimitRisiko)}
+              placeholder="Rp 0"
+            />
+          </div>
+        )}
+      </div>
+
       {/* Section B: Risiko Inherent */}
       <div className="border border-gray-200 dark:border-gray-700 rounded-lg p-4 bg-gray-50 dark:bg-gray-800/40">
         <h3 className="text-sm font-semibold text-gray-900 dark:text-white mb-4">
@@ -181,6 +273,7 @@ export default function RiskMeasurementForm({ risk, onSubmit, onCancel, isSubmit
         </h3>
 
         <div className="border-l-4 border-blue-500 pl-4 space-y-4">
+          {/* Tingkat Dampak & Nilai Dampak */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="flex flex-col gap-2">
               <label htmlFor="impact-level" className="text-sm font-semibold text-gray-700 dark:text-gray-200">
@@ -201,17 +294,19 @@ export default function RiskMeasurementForm({ risk, onSubmit, onCancel, isSubmit
             </div>
 
             <div className="flex flex-col gap-2">
-              <label htmlFor="impact-description" className="text-sm font-semibold text-gray-700 dark:text-gray-200">Deskripsi Dampak</label>
-              <textarea
-                id="impact-description"
-                className={`${inputBase} min-h-20 resize-y`}
-                value={impactDescription}
-                onChange={(e) => setImpactDescription(e.target.value)}
-                placeholder="Jelaskan dampak potensial..."
-              />
+              <label className="text-sm font-semibold text-gray-700 dark:text-gray-200">
+                Nilai Dampak
+                <span className="ml-1 text-xs font-normal text-gray-400">(Anggaran × 10%)</span>
+              </label>
+              <div className={`${readonlyBase} w-full`}>
+                {inherentComputed.nilaiDampak !== null
+                  ? `Rp ${inherentComputed.nilaiDampak.toLocaleString('id-ID', { maximumFractionDigits: 0 })}`
+                  : <span className="text-gray-400 italic text-xs">Isi Asumsi Dampak terlebih dahulu</span>}
+              </div>
             </div>
           </div>
 
+          {/* Tingkat Kemungkinan & Nilai Probabilitas */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="flex flex-col gap-2">
               <label htmlFor="possibility-type" className="text-sm font-semibold text-gray-700 dark:text-gray-200">
@@ -232,17 +327,38 @@ export default function RiskMeasurementForm({ risk, onSubmit, onCancel, isSubmit
             </div>
 
             <div className="flex flex-col gap-2">
-              <label htmlFor="possibility-description" className="text-sm font-semibold text-gray-700 dark:text-gray-200">Deskripsi Kemungkinan</label>
-              <textarea
-                id="possibility-description"
-                className={`${inputBase} min-h-20 resize-y`}
-                value={possibilityDescription}
-                onChange={(e) => setPossibilityDescription(e.target.value)}
-                placeholder="Jelaskan kemungkinan terjadinya risiko..."
-              />
+              <label htmlFor="prob-inherent" className="text-sm font-semibold text-gray-700 dark:text-gray-200">
+                Nilai Probabilitas
+                <span className="ml-1 text-xs font-normal text-gray-400">(1–12)</span>
+              </label>
+              <div className="flex items-center gap-2">
+                <input
+                  type="number"
+                  id="prob-inherent"
+                  className={`${inputBase} flex-1`}
+                  value={nilaiProbabilitasInherent}
+                  onChange={(e) => {
+                    const raw = e.target.value;
+                    if (raw === '') { setNilaiProbabilitasInherent(''); return; }
+                    const parsed = parseInt(raw, 10);
+                    if (!isNaN(parsed)) {
+                      setNilaiProbabilitasInherent(String(Math.min(12, Math.max(1, parsed))));
+                    }
+                  }}
+                  min={1}
+                  max={12}
+                  placeholder="1–12"
+                />
+                <div className={`${readonlyBase} w-20 text-center shrink-0`}>
+                  {inherentComputed.nilaiProbabilitasDisplay !== null
+                    ? `${inherentComputed.nilaiProbabilitasDisplay}%`
+                    : <span className="text-gray-400 italic">—</span>}
+                </div>
+              </div>
             </div>
           </div>
 
+          {/* Tingkat Risiko Inheren */}
           {inherentScore > 0 && (
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between p-4 bg-white dark:bg-gray-800/50 rounded-lg border border-gray-200 dark:border-gray-700 gap-3">
               <p className="text-sm font-semibold text-gray-700 dark:text-gray-300">Tingkat Risiko Inheren</p>
@@ -250,6 +366,16 @@ export default function RiskMeasurementForm({ risk, onSubmit, onCancel, isSubmit
                 <RiskLevelBadge score={inherentScore} />
                 <span className="text-lg font-bold text-gray-900 dark:text-white">{inherentScore}/25</span>
               </div>
+            </div>
+          )}
+
+          {/* Nilai Eksposure Inherent */}
+          {inherentComputed.nilaiEksposure !== null && (
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between p-3 bg-green-50 dark:bg-green-900/20 rounded-lg border border-green-200 dark:border-green-800 gap-3">
+              <p className="text-sm font-semibold text-gray-700 dark:text-gray-300">Nilai Eksposure</p>
+              <span className="text-lg font-bold text-gray-900 dark:text-white">
+                Rp {inherentComputed.nilaiEksposure.toLocaleString('id-ID', { maximumFractionDigits: 0 })}
+              </span>
             </div>
           )}
         </div>
@@ -260,33 +386,6 @@ export default function RiskMeasurementForm({ risk, onSubmit, onCancel, isSubmit
         <h3 className="text-sm font-semibold text-gray-900 dark:text-white mb-4">
           Section C: Risiko Residual
         </h3>
-
-        {/* Unit Risiko */}
-        <div className="flex flex-col gap-2 mb-6">
-          <label htmlFor="unit-risiko" className="text-sm font-semibold text-gray-700 dark:text-gray-200">
-            Unit Risiko
-          </label>
-          <input
-            type="text"
-            inputMode="decimal"
-            id="unit-risiko"
-            className={inputBase}
-            value={unitRisiko}
-            onChange={(e) => {
-              // Allow digits, optional leading minus, and at most one comma as decimal separator
-              const raw = e.target.value;
-              if (raw === '' || raw === '-') { setUnitRisiko(raw); return; }
-              // Strip anything that is not a digit or comma; enforce single comma
-              const cleaned = raw.replace(/[^0-9,]/g, '');
-              const parts = cleaned.split(',');
-              const normalized = parts.length > 2
-                ? parts[0] + ',' + parts.slice(1).join('')
-                : cleaned;
-              setUnitRisiko(normalized);
-            }}
-            placeholder="Masukkan nilai anggaran..."
-          />
-        </div>
 
         {/* Q1–Q4 subsections */}
         <div className="space-y-4">
@@ -341,8 +440,8 @@ export default function RiskMeasurementForm({ risk, onSubmit, onCancel, isSubmit
                       </label>
                       <div className={`${readonlyBase} w-full`}>
                         {comp.nilaiDampak !== null
-                          ? comp.nilaiDampak.toLocaleString('id-ID', { maximumFractionDigits: 2 })
-                          : <span className="text-gray-400 italic text-xs">Isi Unit Risiko terlebih dahulu</span>}
+                          ? `Rp ${comp.nilaiDampak.toLocaleString('id-ID', { maximumFractionDigits: 0 })}`
+                          : <span className="text-gray-400 italic text-xs">Isi Asumsi Dampak terlebih dahulu</span>}
                       </div>
                     </div>
 
@@ -396,7 +495,7 @@ export default function RiskMeasurementForm({ risk, onSubmit, onCancel, isSubmit
                     <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between p-3 bg-green-50 dark:bg-green-900/20 rounded-lg border border-green-200 dark:border-green-800 gap-3">
                       <p className="text-sm font-semibold text-gray-700 dark:text-gray-300">Nilai Eksposure</p>
                       <span className="text-lg font-bold text-gray-900 dark:text-white">
-                        Rp {comp.nilaiEksposure.toLocaleString('id-ID', { maximumFractionDigits: 2 })}
+                        Rp {comp.nilaiEksposure.toLocaleString('id-ID', { maximumFractionDigits: 0 })}
                       </span>
                     </div>
                   )}

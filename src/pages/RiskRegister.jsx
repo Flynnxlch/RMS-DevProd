@@ -143,7 +143,7 @@ export default function RiskRegister() {
                 risk={r}
                 showRiskLevel={true}
                 showScoreBar={true}
-                showRemoveButton={user?.userRole === 'RISK_ASSESSMENT'}
+                showRemoveButton={['RISK_ASSESSMENT', 'RISK_CHAMPION', 'RISK_OFFICER'].includes(user?.userRole)}
                 showActionButtons={user?.userRole !== 'RISK_ASSESSMENT'}
                 showEvaluateButton={false}
                 showRiskLevelText={false}

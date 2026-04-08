@@ -136,6 +136,7 @@ const CABANG_SPECIFIC_DIVISIONS = {
     'Administration & Finance',
   ],
 };
+
 /**
  * Get division options based on region code/cabang
  * @param {string} regionCode - The region code or cabang code (e.g., 'KPS', 'CGK', etc.)
@@ -153,7 +154,7 @@ export function getDivisionOptions(regionCode) {
   if (CABANG_SPECIFIC_DIVISIONS[normalizedRegion]) {
     return CABANG_SPECIFIC_DIVISIONS[normalizedRegion];
   }
-  
+
   // If not found by short code, try to find by full name (for backward compatibility)
   // Import CABANG_OPTIONS from CabangDropdown to map full name to short code
   const CABANG_OPTIONS = [
@@ -165,31 +166,41 @@ export function getDivisionOptions(regionCode) {
     { code: 'HUB Bandara Internasional Sultan Hasanuddin, Makassar', label: 'UPG' },
     { code: 'HUB Bandara Internasional Kualanamu, Medan', label: 'KNO' },
   ];
-  
+
   // Try to find by full name (code/description)
-  const cabangMatch = CABANG_OPTIONS.find(opt => 
-    opt.code.toUpperCase() === normalizedRegion || 
+  const cabangMatch = CABANG_OPTIONS.find(opt =>
+    opt.code.toUpperCase() === normalizedRegion ||
     opt.code === regionCode
   );
-  
+
   if (cabangMatch && CABANG_SPECIFIC_DIVISIONS[cabangMatch.label]) {
     return CABANG_SPECIFIC_DIVISIONS[cabangMatch.label];
   }
-  
+
   // Default: KPS uses KPS divisions
   if (normalizedRegion === 'KPS') return DIVISION_OPTIONS_KPS;
-  
+
   // Jika bukan KPS dan tidak ada mapping spesifik, gunakan DEFAULT
   return CABANG_SPECIFIC_DIVISIONS.DEFAULT;
 }
 
 /**
- * DivisionDropdown Component
- * A reusable dropdown component that automatically displays divisions based on region code/cabang
- * 
+ * Parse a semicolon-separated division string into an array of selected values.
+ * @param {string} value - Semicolon-separated string, e.g. "Div A;Div B"
+ * @returns {string[]}
+ */
+function parseValue(value) {
+  if (!value || typeof value !== 'string') return [];
+  return value.split(';').map(v => v.trim()).filter(Boolean);
+}
+
+/**
+ * DivisionDropdown Component — multi-select checkbox dropdown.
+ * value is stored/returned as a semicolon-separated string (e.g. "Div A;Div B").
+ *
  * @param {Object} props
- * @param {string} props.value - Current selected division value
- * @param {Function} props.onChange - Callback function when division changes
+ * @param {string} props.value - Semicolon-separated selected divisions
+ * @param {Function} props.onChange - Callback with new semicolon-separated string
  * @param {string} props.regionCode - Region code or cabang code (e.g., 'KPS', 'CGK')
  * @param {boolean} props.error - Whether to show error styling
  * @param {boolean} props.openUpward - Whether dropdown should open upward
@@ -207,21 +218,12 @@ export default function DivisionDropdown({
 }) {
   const [isOpen, setIsOpen] = useState(false);
   const dropdownRef = useRef(null);
-  const listRef = useRef(null);
 
   // Get division options based on regionCode
-  const divisionOptions = useMemo(() => {
-    return getDivisionOptions(regionCode);
-  }, [regionCode]);
+  const divisionOptions = useMemo(() => getDivisionOptions(regionCode), [regionCode]);
 
-  // Find selected division - support both old string format and current format (string)
-  const selectedDivision = useMemo(() => {
-    if (!value) return null;
-    if (typeof value === 'string') {
-      return divisionOptions.find(opt => opt === value) || null;
-    }
-    return null;
-  }, [value, divisionOptions]);
+  // Parse value into a Set for O(1) lookup
+  const selectedSet = useMemo(() => new Set(parseValue(value)), [value]);
 
   useEffect(() => {
     const handleClickOutside = (event) => {
@@ -229,23 +231,33 @@ export default function DivisionDropdown({
         setIsOpen(false);
       }
     };
-
-    if (isOpen) {
-      document.addEventListener('mousedown', handleClickOutside);
-    }
-
-    return () => {
-      document.removeEventListener('mousedown', handleClickOutside);
-    };
+    if (isOpen) document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
   }, [isOpen]);
 
-  const handleSelect = (division) => {
-    onChange(division);
-    setIsOpen(false);
+  const handleToggle = (division) => {
+    const next = new Set(selectedSet);
+    if (next.has(division)) {
+      next.delete(division);
+    } else {
+      next.add(division);
+    }
+    // Preserve order from divisionOptions
+    const ordered = divisionOptions.filter(d => next.has(d));
+    onChange(ordered.join(';'));
   };
 
-  const inputBase = 'w-full rounded-lg border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-700/50 px-3 py-2 text-sm text-gray-900 dark:text-gray-100 shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 transition-colors';
+  const inputBase =
+    'w-full rounded-lg border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-700/50 px-3 py-2 text-sm text-gray-900 dark:text-gray-100 shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 transition-colors';
   const borderClass = error ? 'border-red-500 dark:border-red-500' : '';
+
+  // Button label: show selected count or placeholder
+  const selectedArray = divisionOptions.filter(d => selectedSet.has(d));
+  const buttonLabel = selectedArray.length === 0
+    ? placeholder
+    : selectedArray.length === 1
+      ? selectedArray[0]
+      : `${selectedArray.length} divisi dipilih`;
 
   return (
     <div className={`relative ${className}`} ref={dropdownRef}>
@@ -255,8 +267,8 @@ export default function DivisionDropdown({
           onClick={() => setIsOpen(!isOpen)}
           className={`${inputBase} ${borderClass} text-left cursor-pointer pr-10`}
         >
-          <span className="block truncate text-sm">
-            {selectedDivision || placeholder}
+          <span className={`block truncate text-sm ${selectedArray.length === 0 ? 'text-gray-400 dark:text-gray-500' : ''}`}>
+            {buttonLabel}
           </span>
         </button>
         <div className="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none">
@@ -268,24 +280,45 @@ export default function DivisionDropdown({
         <>
           <div className="fixed inset-0 z-40" onClick={() => setIsOpen(false)} />
           <div className={`absolute z-50 w-full ${openUpward ? 'bottom-full mb-1' : 'top-full mt-1'} bg-white dark:bg-gray-800 rounded-lg shadow-xl border border-gray-200 dark:border-gray-700 overflow-hidden`}>
-            <div
-              ref={listRef}
-              className="max-h-[192px] overflow-y-auto [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]"
-            >
+            {/* Selected count header */}
+            {selectedArray.length > 0 && (
+              <div className="px-3 py-1.5 border-b border-gray-100 dark:border-gray-700 flex items-center justify-between">
+                <span className="text-xs text-gray-500 dark:text-gray-400">
+                  {selectedArray.length} dipilih
+                </span>
+                <button
+                  type="button"
+                  onClick={() => onChange('')}
+                  className="text-xs text-red-500 hover:text-red-600 dark:hover:text-red-400 transition-colors"
+                >
+                  Hapus semua
+                </button>
+              </div>
+            )}
+            <div className="max-h-55 overflow-y-auto [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
               {divisionOptions.map((division) => {
-                const isSelected = (selectedDivision && selectedDivision === division) || value === division;
+                const isChecked = selectedSet.has(division);
                 return (
                   <button
                     key={division}
                     type="button"
-                    onClick={() => handleSelect(division)}
-                    className={`w-full text-left px-4 py-2.5 text-sm hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors ${
-                      isSelected
-                        ? 'bg-[#0c9361]/10 dark:bg-[#0c9361]/20 text-[#0c9361] dark:text-[#0c9361] font-medium'
-                        : 'text-gray-900 dark:text-gray-100'
+                    onClick={() => handleToggle(division)}
+                    className={`w-full text-left px-3 py-2.5 text-sm flex items-center gap-2.5 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors ${
+                      isChecked
+                        ? 'bg-[#0c9361]/10 dark:bg-[#0c9361]/20'
+                        : ''
                     }`}
                   >
-                    {division}
+                    <span className={`shrink-0 w-4 h-4 rounded border flex items-center justify-center transition-colors ${
+                      isChecked
+                        ? 'bg-[#0c9361] border-[#0c9361]'
+                        : 'bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-500'
+                    }`}>
+                      {isChecked && <i className="bi bi-check text-white text-xs leading-none" />}
+                    </span>
+                    <span className={`${isChecked ? 'text-[#0c9361] font-medium' : 'text-gray-900 dark:text-gray-100'}`}>
+                      {division}
+                    </span>
                   </button>
                 );
               })}
@@ -299,4 +332,3 @@ export default function DivisionDropdown({
 
 // Export constants for use in other components if needed
 export { CABANG_SPECIFIC_DIVISIONS, DIVISION_OPTIONS_KPS };
-

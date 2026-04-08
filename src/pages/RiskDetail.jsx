@@ -271,7 +271,17 @@ export default function RiskDetail() {
               </div>
               <div>
                 <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-1">Divisi</label>
-                <p className="text-sm text-gray-900 dark:text-white">{risk.division || 'N/A'}</p>
+                {risk.division ? (
+                  <div className="flex flex-wrap gap-1.5">
+                    {risk.division.split(';').map(d => d.trim()).filter(Boolean).map((d) => (
+                      <span key={d} className="inline-flex items-center px-2 py-0.5 rounded-md text-xs font-medium bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 border border-blue-100 dark:border-blue-800">
+                        {d}
+                      </span>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-sm text-gray-900 dark:text-white">N/A</p>
+                )}
               </div>
             </div>
 
@@ -645,6 +655,26 @@ export default function RiskDetail() {
               </div>
             </div>
 
+            {/* Asumsi Perhitungan Dampak — shared between Section B and C */}
+            <div className="bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-200 dark:border-blue-800 p-3 space-y-2">
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+                <span className="text-sm font-semibold text-gray-700 dark:text-gray-300">Asumsi Perhitungan Dampak</span>
+                <span className="text-sm font-bold text-gray-900 dark:text-white">
+                  {m?.unitRisiko != null
+                    ? `Rp ${Math.round(m.unitRisiko).toLocaleString('id-ID')}`
+                    : 'N/A'}
+                </span>
+              </div>
+              {risk.riskCategoryType === 'Kualitatif' && m?.limitRisiko != null && (
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 pt-2 border-t border-blue-200 dark:border-blue-700">
+                  <span className="text-sm font-semibold text-gray-700 dark:text-gray-300">Limit Risiko</span>
+                  <span className="text-sm font-bold text-gray-900 dark:text-white">
+                    Rp {Math.round(m.limitRisiko).toLocaleString('id-ID')}
+                  </span>
+                </div>
+              )}
+            </div>
+
             {/* Section B: Risiko Inherent */}
             <div className="border border-gray-200 dark:border-gray-700 rounded-lg p-4 bg-gray-50 dark:bg-gray-800/40">
               <h3 className="text-sm font-semibold text-gray-900 dark:text-white mb-4">
@@ -659,8 +689,12 @@ export default function RiskDetail() {
                     </p>
                   </div>
                   <div>
-                    <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-1">Deskripsi Dampak</label>
-                    <p className="text-sm text-gray-900 dark:text-white whitespace-pre-wrap">{m?.impactDescription || 'N/A'}</p>
+                    <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-1">Nilai Dampak</label>
+                    <p className="text-sm text-gray-900 dark:text-white">
+                      {m?.nilaiDampakInherent != null
+                        ? `Rp ${Math.round(m.nilaiDampakInherent).toLocaleString('id-ID')}`
+                        : 'N/A'}
+                    </p>
                   </div>
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -671,8 +705,12 @@ export default function RiskDetail() {
                     </p>
                   </div>
                   <div>
-                    <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-1">Deskripsi Kemungkinan</label>
-                    <p className="text-sm text-gray-900 dark:text-white whitespace-pre-wrap">{m?.possibilityDescription || 'N/A'}</p>
+                    <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-1">Nilai Probabilitas</label>
+                    <p className="text-sm text-gray-900 dark:text-white">
+                      {m?.nilaiProbabilitasInherent != null
+                        ? `${m.nilaiProbabilitasInherent} (${m.nilaiProbDisplayInherent ?? '—'}%)`
+                        : 'N/A'}
+                    </p>
                   </div>
                 </div>
                 {m?.inherentScore > 0 && (
@@ -682,22 +720,20 @@ export default function RiskDetail() {
                     <span className="text-sm font-bold text-gray-900 dark:text-white">{m.inherentScore}/25</span>
                   </div>
                 )}
+                {m?.nilaiEksposureInherent != null && (
+                  <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between p-3 bg-green-50 dark:bg-green-900/20 rounded-lg border border-green-200 dark:border-green-800 gap-2">
+                    <span className="text-sm font-semibold text-gray-700 dark:text-gray-300">Nilai Eksposure</span>
+                    <span className="text-sm font-bold text-gray-900 dark:text-white">
+                      Rp {Math.round(m.nilaiEksposureInherent).toLocaleString('id-ID')}
+                    </span>
+                  </div>
+                )}
               </div>
             </div>
 
             {/* Section C: Risiko Residual */}
             <div className="border border-gray-200 dark:border-gray-700 rounded-lg p-4 bg-gray-50 dark:bg-gray-800/40">
               <h3 className="text-sm font-semibold text-gray-900 dark:text-white mb-4">Section C: Risiko Residual</h3>
-
-              {/* Unit Risiko */}
-              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between p-3 bg-gray-50 dark:bg-gray-800/50 rounded-lg border border-gray-200 dark:border-gray-700 gap-2 mb-6">
-                <span className="text-sm font-semibold text-gray-700 dark:text-gray-300">Unit Risiko</span>
-                <span className="text-sm font-bold text-gray-900 dark:text-white">
-                  {m?.unitRisiko != null
-                    ? `Rp ${m.unitRisiko.toLocaleString('id-ID', { maximumFractionDigits: 2 })}`
-                    : 'N/A'}
-                </span>
-              </div>
 
               {/* Q1–Q4 subsections */}
               <div className="space-y-4">
@@ -741,7 +777,7 @@ export default function RiskDetail() {
                               </label>
                               <p className="text-sm text-gray-900 dark:text-white">
                                 {nilaiDampak != null
-                                  ? nilaiDampak.toLocaleString('id-ID', { maximumFractionDigits: 2 })
+                                  ? `Rp ${Math.round(nilaiDampak).toLocaleString('id-ID')}`
                                   : 'N/A'}
                               </p>
                             </div>
@@ -765,7 +801,7 @@ export default function RiskDetail() {
                             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between p-3 bg-green-50 dark:bg-green-900/20 rounded-lg border border-green-200 dark:border-green-800 gap-2">
                               <span className="text-sm font-semibold text-gray-700 dark:text-gray-300">Nilai Eksposure</span>
                               <span className="text-sm font-bold text-gray-900 dark:text-white">
-                                Rp {nilaiEks.toLocaleString('id-ID', { maximumFractionDigits: 2 })}
+                                Rp {Math.round(nilaiEks).toLocaleString('id-ID')}
                               </span>
                             </div>
                           )}
