@@ -229,10 +229,10 @@ export default function RiskMeasurementForm({ risk, onSubmit, onCancel, isSubmit
 
       {/* Asumsi Perhitungan Dampak — shared, placed between A and B */}
       <div className="border border-gray-200 dark:border-gray-700 rounded-lg p-4 bg-gray-50 dark:bg-gray-800/40">
-        <h3 className="text-sm font-semibold text-gray-900 dark:text-white mb-4">Asumsi Perhitungan Dampak</h3>
+        <h3 className="text-sm font-semibold text-gray-900 dark:text-white mb-4">Nilai Asumsi</h3>
         <div className="flex flex-col gap-2">
           <label htmlFor="unit-risiko" className="text-sm font-semibold text-gray-700 dark:text-gray-200">
-            Nilai Anggaran / Unit Risiko
+            Asumsi Perhitungan Dampak
           </label>
           <input
             type="text"
@@ -243,9 +243,6 @@ export default function RiskMeasurementForm({ risk, onSubmit, onCancel, isSubmit
             onChange={(e) => handleRupiahChange(e.target.value, setUnitRisiko)}
             placeholder="Rp 0"
           />
-          <p className="text-xs text-gray-400">
-            Digunakan untuk menghitung Nilai Dampak Inheren (×10%) dan Nilai Dampak Residual per kuartal.
-          </p>
         </div>
 
         {isKualitatif && (
@@ -296,7 +293,6 @@ export default function RiskMeasurementForm({ risk, onSubmit, onCancel, isSubmit
             <div className="flex flex-col gap-2">
               <label className="text-sm font-semibold text-gray-700 dark:text-gray-200">
                 Nilai Dampak
-                <span className="ml-1 text-xs font-normal text-gray-400">(Anggaran × 10%)</span>
               </label>
               <div className={`${readonlyBase} w-full`}>
                 {inherentComputed.nilaiDampak !== null
