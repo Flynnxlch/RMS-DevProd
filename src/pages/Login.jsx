@@ -285,11 +285,11 @@ export default function Login() {
         <div className="relative z-10 flex flex-col justify-end p-12 h-full">
           <div className="max-w-md">
             <blockquote className="text-white dark:text-gray-200 text-xl font-medium mb-6 leading-relaxed">
-              "Design is not just what it looks like and feels like. Design is how it works."
+              "Manajemen risiko bukan berfokus pada menghapus ketidakpastian, melainkan pada memahami, menilai, dan mengelola ketidakpastian dengan bijak"
             </blockquote>
             <div className="h-px bg-white/30 dark:bg-gray-400 mb-4"></div>
             <p className="text-white dark:text-gray-200 text-lg font-semibold">
-              Risk Management System
+              Corporate Principle
             </p>
           </div>
         </div>
