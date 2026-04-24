@@ -11,7 +11,7 @@ import { RISK_LEVELS, getRiskLevel } from '../utils/risk';
 const RISKS_PER_PAGE = 6;
 
 export default function RiskRegister() {
-  const { risks, removeRisk, fetchRisks, isLoading: risksLoading } = useRisks();
+  const { risks, removeRisk, fetchRisks, isLoading: risksLoading, error: fetchError } = useRisks();
   const { user } = useAuth();
   const [searchParams] = useSearchParams();
   const [query, setQuery] = useState('');
@@ -156,8 +156,17 @@ export default function RiskRegister() {
 
             {!filteredRisks.length && !risksLoading && (
               <div className="text-sm text-gray-500 dark:text-gray-400">
-                Tidak ada risiko ditemukan.{user?.userRole === 'RISK_OFFICER' && (
-                  <> <Link className="text-blue-600 dark:text-blue-400 hover:underline transition-colors" to="/risks/new">Buat risiko baru</Link>.</>
+                {fetchError ? (
+                  <span className="text-amber-600 dark:text-amber-400">
+                    <i className="bi bi-wifi-off mr-1" />
+                    Koneksi Anda Lemah, Mohon Untuk Refresh Ulang lagi
+                  </span>
+                ) : (
+                  <>
+                    Tidak ada risiko ditemukan.{user?.userRole === 'RISK_OFFICER' && (
+                      <> <Link className="text-blue-600 dark:text-blue-400 hover:underline transition-colors" to="/risks/new">Buat risiko baru</Link>.</>
+                    )}
+                  </>
                 )}
               </div>
             )}

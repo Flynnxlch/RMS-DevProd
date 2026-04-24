@@ -115,8 +115,10 @@ export function RiskProvider({ children }) {
       // Handle different error types
       if (err.name === 'AbortError') {
         setErrorRef.current('Request timeout. Please check your connection.');
+        // Keep existing risk data — transient timeout should not erase previously loaded risks
       } else if (err.message?.includes('fetch') || err.message?.includes('Network error')) {
         setErrorRef.current('Unable to connect to server. Please check if the backend is running.');
+        // Keep existing risk data — network blip should not erase previously loaded risks
       } else if (
         err.status === 401 ||
         err.message?.includes('401') ||
@@ -128,11 +130,11 @@ export function RiskProvider({ children }) {
         // Clear expired/invalid token so subsequent requests don't keep 401-looping
         localStorage.removeItem('minlt:auth:token');
         window.dispatchEvent(new Event('user-logout'));
+        dispatchRef.current({ type: 'set', payload: [] });
       } else {
         setErrorRef.current(err.message || 'Failed to fetch risks');
+        dispatchRef.current({ type: 'set', payload: [] });
       }
-      
-      dispatchRef.current({ type: 'set', payload: [] });
     } finally {
       setIsLoadingRef.current(false);
     }

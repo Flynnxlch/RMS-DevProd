@@ -12,6 +12,7 @@ const POSSIBILITY_LABELS = {
   5: 'Hampir Pasti Terjadi',
 };
 
+// Labels for Kondisi Risiko Terkini dropdowns
 const IMPACT_LABELS = {
   1: 'Sangat Rendah',
   2: 'Rendah',
@@ -95,9 +96,32 @@ export default function MitigationPlanForm({
     'w-full rounded-lg border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-700/50 px-3 py-2 text-sm text-gray-900 dark:text-gray-100 shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 transition-colors';
 
   // Always use inherentScore from analysis, not from score or mitigation
-  // This ensures inherentScore is never affected by current_score or residual_score
   const inherentScore = risk?.inherentScore || 0;
-  
+
+  // Inherent score for Ringkasan Risiko — sourced from Pengukuran Risiko (risk.measurement)
+  const displayInherentScore = useMemo(() => {
+    const m = risk?.measurement;
+    if (m?.inherentScore > 0) return m.inherentScore;
+    if (m?.impactLevel > 0 && m?.possibilityType > 0) {
+      return computeRiskScore({ possibility: Number(m.possibilityType), impactLevel: Number(m.impactLevel) });
+    }
+    // Last fallback: inherentScore stored directly on the risk (from analysis)
+    return risk?.inherentScore > 0 ? risk.inherentScore : 0;
+  }, [risk]);
+
+  // Per-quarter residual scores for Ringkasan Risiko
+  const residualQuarterScores = useMemo(() => {
+    const m = risk?.measurement;
+    return ['Q1', 'Q2', 'Q3', 'Q4'].map((q) => {
+      const stored = m?.[`residualScore${q}`];
+      if (stored > 0) return stored;
+      const imp = Number(m?.[`residualImpactLevel${q}`] || 0);
+      const poss = Number(m?.[`residualPossibilityType${q}`] || 0);
+      if (imp > 0 && poss > 0) return computeRiskScore({ possibility: poss, impactLevel: imp });
+      return null;
+    });
+  }, [risk]);
+
   // Calculate current score from current impact level and probability type
   const currentScore = useMemo(() => {
     return computeRiskScore({
@@ -149,8 +173,16 @@ export default function MitigationPlanForm({
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
       <div className="border border-gray-200 dark:border-gray-700 rounded-lg p-4 bg-gray-50 dark:bg-gray-800/40">
-        <div className="text-sm font-semibold text-gray-900 dark:text-white mb-2">Ringkasan Risiko</div>
+        <div className="text-sm font-semibold text-gray-900 dark:text-white mb-3">Ringkasan Risiko</div>
         <div className="space-y-3 text-sm text-gray-700 dark:text-gray-300">
+
+          {/* Dampak Risiko */}
+          <div>
+            <span className="font-semibold">Dampak Risiko:</span>{' '}
+            {risk?.riskCategoryType || 'N/A'}
+          </div>
+
+          {/* Efektivitas Kontrol */}
           <div>
             <span className="font-semibold">Efektivitas Kontrol yang Ada:</span>{' '}
             {risk?.controlEffectivenessAssessment
@@ -158,49 +190,53 @@ export default function MitigationPlanForm({
               : 'N/A'}
           </div>
 
-          <div className="space-y-1">
+          {/* Inherent — mirrors "Tingkat Risiko Inheren" card from Pengukuran Risiko */}
+          <div className="space-y-2">
             <div className="font-semibold text-gray-800 dark:text-gray-100">Inherent</div>
-            <div>
-              <span className="font-semibold">Dampak Inheren:</span>{' '}
-              {risk?.impactLevel
-                ? `${risk.impactLevel} — ${IMPACT_LABELS[risk.impactLevel] || 'N/A'}`
-                : 'N/A'}
-              {risk?.impactDescription && (
-                <div className="mt-1 ml-0 text-gray-600 dark:text-gray-400">{risk.impactDescription}</div>
-              )}
-            </div>
-            <div>
-              <span className="font-semibold">Kemungkinan Inheren:</span>{' '}
-              {risk?.possibilityType
-                ? `${risk.possibilityType} — ${POSSIBILITY_LABELS[risk.possibilityType] || 'N/A'}`
-                : 'N/A'}
-              {risk?.possibilityDescription && (
-                <div className="mt-1 ml-0 text-gray-600 dark:text-gray-400">{risk.possibilityDescription}</div>
-              )}
-            </div>
+            {displayInherentScore > 0 ? (
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between p-4 bg-white dark:bg-gray-800/50 rounded-lg border border-gray-200 dark:border-gray-700 gap-3">
+                <p className="text-sm font-semibold text-gray-700 dark:text-gray-300">Tingkat Risiko Inheren</p>
+                <div className="flex items-center gap-3">
+                  <RiskLevelBadge score={displayInherentScore} />
+                  <span className="text-lg font-bold text-gray-900 dark:text-white">{displayInherentScore}/25</span>
+                </div>
+              </div>
+            ) : (
+              <p className="text-xs text-gray-400 dark:text-gray-500 italic">
+                Data Pengukuran Risiko belum tersedia
+              </p>
+            )}
           </div>
 
-          <div className="space-y-1">
+          {/* Residual Q1–Q4 — mirrors quarter cards from Pengukuran Risiko */}
+          <div className="space-y-2">
             <div className="font-semibold text-gray-800 dark:text-gray-100">Residual</div>
-            <div>
-              <span className="font-semibold">Dampak Residual:</span>{' '}
-              {risk?.residualImpactLevel
-                ? `${risk.residualImpactLevel} — ${IMPACT_LABELS[risk.residualImpactLevel] || 'N/A'}`
-                : 'N/A'}
-              {risk?.residualImpactDescription && (
-                <div className="mt-1 ml-0 text-gray-600 dark:text-gray-400">{risk.residualImpactDescription}</div>
-              )}
-            </div>
-            <div>
-              <span className="font-semibold">Kemungkinan Residual:</span>{' '}
-              {risk?.residualPossibilityType
-                ? `${risk.residualPossibilityType} — ${POSSIBILITY_LABELS[risk.residualPossibilityType] || 'N/A'}`
-                : 'N/A'}
-              {risk?.residualPossibilityDescription && (
-                <div className="mt-1 ml-0 text-gray-600 dark:text-gray-400">{risk.residualPossibilityDescription}</div>
-              )}
-            </div>
+            {[
+              'Q1 (Januari – Maret)',
+              'Q2 (April – Juni)',
+              'Q3 (Juli – September)',
+              'Q4 (Oktober – Desember)',
+            ].map((qLabel, i) => {
+              const score = residualQuarterScores[i];
+              return (
+                <div key={qLabel}>
+                  <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 mb-1">{qLabel}</p>
+                  {score !== null ? (
+                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between p-3 bg-gray-50 dark:bg-gray-800/50 rounded-lg border border-gray-200 dark:border-gray-700 gap-2">
+                      <p className="text-sm font-semibold text-gray-700 dark:text-gray-300">Tingkat Risiko Residual</p>
+                      <div className="flex items-center gap-3">
+                        <RiskLevelBadge score={score} />
+                        <span className="text-base font-bold text-gray-900 dark:text-white">{score}/25</span>
+                      </div>
+                    </div>
+                  ) : (
+                    <p className="text-xs text-gray-400 dark:text-gray-500 italic pl-1">Belum diisi</p>
+                  )}
+                </div>
+              );
+            })}
           </div>
+
         </div>
       </div>
 
@@ -404,17 +440,7 @@ export default function MitigationPlanForm({
         {/* Score Risiko Terkini */}
         <div className="mt-2">
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between p-4 bg-gray-50 dark:bg-gray-800/50 rounded-lg border border-gray-200 dark:border-gray-700 gap-3">
-            <div>
-              <p className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-1">Score Risiko Terkini</p>
-              <p className="text-xs text-gray-500 dark:text-gray-400">
-                Score Inheren: {inherentScore}/25 → Score Risiko Terkini: {currentScore > 0 ? currentScore : inherentScore}/25
-                {currentLevel && (
-                  <span className="ml-2">
-                    ({currentLevel})
-                  </span>
-                )}
-              </p>
-            </div>
+            <p className="text-sm font-semibold text-gray-700 dark:text-gray-300">Score Risiko Terkini</p>
             <div className="flex items-center gap-3">
               {currentScore > 0 && currentLevel && (
                 <RiskLevelBadge score={currentScore} />

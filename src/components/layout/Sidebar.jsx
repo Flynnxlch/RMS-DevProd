@@ -1,5 +1,6 @@
 import { useSidebar } from '../../context/SidebarContext';
 import SidebarMenu from '../navigation/SidebarMenu';
+import logoImg from '../../assets/vecteezy_close-up-of-black-crow-inspired-feathers-ai-generated_45370842.png';
 
 export default function Sidebar() {
   const { isSidebarOpen, isSidebarCollapsed, isMobile, closeSidebar } = useSidebar();
@@ -43,11 +44,8 @@ export default function Sidebar() {
         {/* Sidebar Brand */}
         <div className="flex items-center h-16 px-4 border-b border-white/10 shrink-0 backdrop-blur-sm">
           <a href="/" className="flex items-center gap-3 text-white no-underline overflow-hidden group">
-            <div
-              className="w-10 h-10 rounded-xl bg-white/20 backdrop-blur-sm flex items-center justify-center shrink-0 shadow-lg border border-white/20 group-hover:bg-white/30 transition-all duration-200"
-              aria-hidden="true"
-            >
-              <i className="bi bi-shield-check text-white text-xl" />
+            <div className="w-10 h-10 rounded-xl overflow-hidden shrink-0" aria-hidden="true">
+              <img src={logoImg} alt="Logo" className="w-full h-full object-cover" />
             </div>
             <span 
               className={`font-semibold text-base whitespace-nowrap transition-all duration-300 text-white ${

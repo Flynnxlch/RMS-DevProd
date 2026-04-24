@@ -5,10 +5,11 @@ import ErrorModal from '../components/ui/ErrorModal';
 import { useAuth } from '../context/AuthContext';
 
 // Import images
-import photo1 from '../assets/img/photo1.png';
-import photo2 from '../assets/img/photo2.png';
-import photo3 from '../assets/img/photo3.jpg';
-import photo4 from '../assets/img/photo4.jpg';
+import bg1 from '../assets/background/bg1.jpeg';
+import bg2 from '../assets/background/bg2.jpeg';
+import bg3 from '../assets/background/bg3.JPG';
+import bg4 from '../assets/background/bg4.jpg';
+import bg5 from '../assets/background/bg5.jpg';
 
 
 export default function Login() {
@@ -45,7 +46,7 @@ export default function Login() {
   const [showForgotPasswordSuccess, setShowForgotPasswordSuccess] = useState(false);
 
   // Carousel state
-  const images = [photo1, photo2, photo3, photo4];
+  const images = [bg1, bg2, bg3, bg4, bg5];
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
 
   // Auto-rotate carousel

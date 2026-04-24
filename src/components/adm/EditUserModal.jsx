@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { API_ENDPOINTS, apiRequest } from '../../config/api';
 import { useAuth } from '../../context/AuthContext';
-import { useSidebar } from '../../context/SidebarContext';
 import CabangDropdown from '../ui/CabangDropdown';
 import DivisionDropdown, { getDivisionOptions } from '../ui/DivisionDropdown';
 
@@ -15,7 +14,6 @@ const USER_ROLE_OPTIONS = [
 
 export default function EditUserModal({ isOpen, onClose, user, onSuccess }) {
   const { user: currentUser } = useAuth();
-  const { isSidebarCollapsed, isMobile } = useSidebar();
   const [formData, setFormData] = useState({
     name: '',
     email: '',
@@ -199,17 +197,8 @@ export default function EditUserModal({ isOpen, onClose, user, onSuccess }) {
           scrollbar-width: none;
         }
       `}</style>
-      <div className="fixed inset-0 z-50 flex items-start justify-center pt-20 pb-4 bg-black/50 backdrop-blur-sm" onClick={onClose}>
-        <div 
-          className={`bg-white dark:bg-gray-800 rounded-lg shadow-xl w-full flex flex-col transition-all duration-300 max-w-2xl max-h-[calc(100vh-6rem)] ${
-            isMobile 
-              ? 'mx-4'
-              : !isSidebarCollapsed 
-                ? 'ml-[calc(var(--sidebar-width)+1rem)] mr-4'
-                : 'ml-[calc(var(--sidebar-mini-width)+1rem)] mr-4'
-          }`}
-          onClick={(e) => e.stopPropagation()}
-        >
+      <div className="fixed inset-0 z-50 flex items-start justify-center pt-16 pb-4 px-4 bg-black/50 backdrop-blur-sm">
+        <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl w-full mx-auto flex flex-col max-w-2xl max-h-[calc(100vh-5rem)]">
           <div className="shrink-0 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-6 py-4 flex items-center justify-between rounded-t-lg">
             <h2 className="text-lg font-semibold text-gray-900 dark:text-white">
               Edit Pengguna
