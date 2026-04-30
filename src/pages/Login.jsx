@@ -282,7 +282,7 @@ export default function Login() {
         <div className="absolute inset-0 bg-black/40 dark:bg-black/60"></div>
         
         {/* Quote and Portal Name Overlay */}
-        <div className="relative z-10 flex flex-col justify-end p-12 h-full">
+        <div className="relative z-10 flex flex-col justify-start p-12 h-full">
           <div className="max-w-md">
             <blockquote className="text-white dark:text-gray-200 text-xl font-medium mb-6 leading-relaxed">
               "Manajemen risiko bukan berfokus pada menghapus ketidakpastian, melainkan pada memahami, menilai, dan mengelola ketidakpastian dengan bijak"

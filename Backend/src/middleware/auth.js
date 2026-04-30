@@ -18,7 +18,7 @@ export function extractToken(request) {
  */
 export async function verifyToken(token) {
   try {
-    const decoded = jwt.verify(token, config.jwt.secret);
+    const decoded = jwt.verify(token, config.jwt.secret, { algorithms: ['HS256'] });
     
     // Add retry logic for database connection
     let retries = 3;

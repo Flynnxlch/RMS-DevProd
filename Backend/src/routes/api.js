@@ -4,7 +4,21 @@ import { measurementController } from '../controllers/measurementController.js';
 import { regulationController } from '../controllers/regulationController.js';
 import { requestController } from '../controllers/requestController.js';
 import { riskController } from '../controllers/riskController.js';
-import { authMiddleware } from '../middleware/auth.js';
+import { authMiddleware, requireRole } from '../middleware/auth.js';
+
+/**
+ * Route-level role guard — defense-in-depth before the controller's own check.
+ * Returns a 403 Response if the user lacks the required role, otherwise null.
+ */
+function enforceRole(user, ...allowedRoles) {
+  if (!requireRole(user, ...allowedRoles)) {
+    return new Response(
+      JSON.stringify({ error: 'Access denied. Insufficient permissions.' }),
+      { status: 403, headers: { 'Content-Type': 'application/json' } }
+    );
+  }
+  return null;
+}
 
 /**
  * Extract path parameters from URL pattern
@@ -84,11 +98,13 @@ export async function apiRoutes(request, path) {
     }
   }
 
-  // User management endpoints (admin only)
+  // User management endpoints (RISK_ASSESSMENT only)
   if (path === '/users') {
     if (method === 'GET') {
       const authError = await authMiddleware(request);
       if (authError) return authError;
+      const roleError = enforceRole(request.user, 'RISK_ASSESSMENT');
+      if (roleError) return roleError;
       return authController.getAllUsers(request);
     }
   }
@@ -96,24 +112,19 @@ export async function apiRoutes(request, path) {
   if (matchRoute('/users/:userId', path)) {
     const params = extractPathParams('/users/:userId', path);
     const { userId } = params;
-    
-    // Log for debugging
-    console.log('User management route matched:', { 
-      path, 
-      userId, 
-      method,
-      extractedParams: params,
-      userIdType: typeof userId 
-    });
-    
+
     if (method === 'PUT' || method === 'PATCH') {
       const authError = await authMiddleware(request);
       if (authError) return authError;
+      const roleError = enforceRole(request.user, 'RISK_ASSESSMENT');
+      if (roleError) return roleError;
       return authController.updateUser(request, userId);
     }
     if (method === 'DELETE') {
       const authError = await authMiddleware(request);
       if (authError) return authError;
+      const roleError = enforceRole(request.user, 'RISK_ASSESSMENT');
+      if (roleError) return roleError;
       return authController.deleteUser(request, userId);
     }
   }
@@ -186,58 +197,68 @@ export async function apiRoutes(request, path) {
     }
   }
 
-  // Risk measurement endpoints (Risk Assessment only)
+  // Risk measurement endpoints (RISK_ASSESSMENT only)
   if (matchRoute('/risks/:riskId/measurement', path)) {
     const { riskId } = extractPathParams('/risks/:riskId/measurement', path);
 
     if (method === 'POST' || method === 'PUT') {
       const authError = await authMiddleware(request);
       if (authError) return authError;
+      const roleError = enforceRole(request.user, 'RISK_ASSESSMENT');
+      if (roleError) return roleError;
       return measurementController.submitMeasurement(request, riskId);
     }
   }
 
-  // Risk approval endpoints (Risk Champion / Risk Assessment only)
+  // Risk approval endpoints (RISK_CHAMPION and RISK_ASSESSMENT only)
   if (matchRoute('/risks/:riskId/approval', path)) {
     const { riskId } = extractPathParams('/risks/:riskId/approval', path);
 
     if (method === 'POST') {
       const authError = await authMiddleware(request);
       if (authError) return authError;
+      const roleError = enforceRole(request.user, 'RISK_CHAMPION', 'RISK_ASSESSMENT');
+      if (roleError) return roleError;
       return approvalController.submitApproval(request, riskId);
     }
   }
 
-  // User registration request endpoints
+  // User registration request endpoints (RISK_ASSESSMENT and RISK_CHAMPION only)
   if (path === '/user-requests/registration') {
     if (method === 'GET') {
       const authError = await authMiddleware(request);
       if (authError) return authError;
+      const roleError = enforceRole(request.user, 'RISK_ASSESSMENT', 'RISK_CHAMPION');
+      if (roleError) return roleError;
       return requestController.getRegistrationRequests(request);
     }
   }
-  
+
   if (matchRoute('/user-requests/registration/:requestId/approve', path)) {
     const { requestId } = extractPathParams('/user-requests/registration/:requestId/approve', path);
-    
+
     if (method === 'POST') {
       const authError = await authMiddleware(request);
       if (authError) return authError;
+      const roleError = enforceRole(request.user, 'RISK_ASSESSMENT', 'RISK_CHAMPION');
+      if (roleError) return roleError;
       return requestController.approveRegistrationRequest(request, requestId);
     }
   }
-  
+
   if (matchRoute('/user-requests/registration/:requestId/reject', path)) {
     const { requestId } = extractPathParams('/user-requests/registration/:requestId/reject', path);
-    
+
     if (method === 'POST') {
       const authError = await authMiddleware(request);
       if (authError) return authError;
+      const roleError = enforceRole(request.user, 'RISK_ASSESSMENT', 'RISK_CHAMPION');
+      if (roleError) return roleError;
       return requestController.rejectRegistrationRequest(request, requestId);
     }
   }
-  
-  // Other request endpoints
+
+  // Other request endpoints (approve/reject restricted to RISK_ASSESSMENT and RISK_CHAMPION)
   if (path === '/user-requests/other') {
     if (method === 'GET') {
       const authError = await authMiddleware(request);
@@ -250,28 +271,32 @@ export async function apiRoutes(request, path) {
       return requestController.createOtherRequest(request);
     }
   }
-  
+
   if (matchRoute('/user-requests/other/:requestId/approve', path)) {
     const { requestId } = extractPathParams('/user-requests/other/:requestId/approve', path);
-    
+
     if (method === 'POST') {
       const authError = await authMiddleware(request);
       if (authError) return authError;
+      const roleError = enforceRole(request.user, 'RISK_ASSESSMENT', 'RISK_CHAMPION');
+      if (roleError) return roleError;
       return requestController.approveOtherRequest(request, requestId);
     }
   }
-  
+
   if (matchRoute('/user-requests/other/:requestId/reject', path)) {
     const { requestId } = extractPathParams('/user-requests/other/:requestId/reject', path);
-    
+
     if (method === 'POST') {
       const authError = await authMiddleware(request);
       if (authError) return authError;
+      const roleError = enforceRole(request.user, 'RISK_ASSESSMENT', 'RISK_CHAMPION');
+      if (roleError) return roleError;
       return requestController.rejectOtherRequest(request, requestId);
     }
   }
   
-  // Regulation updates endpoints
+  // Regulation updates endpoints (write access restricted to RISK_ASSESSMENT)
   if (path === '/regulation-updates') {
     if (method === 'GET') {
       // Public endpoint - no auth required for reading
@@ -280,13 +305,15 @@ export async function apiRoutes(request, path) {
     if (method === 'POST') {
       const authError = await authMiddleware(request);
       if (authError) return authError;
+      const roleError = enforceRole(request.user, 'RISK_ASSESSMENT');
+      if (roleError) return roleError;
       return regulationController.create(request);
     }
   }
-  
+
   if (matchRoute('/regulation-updates/:id', path)) {
     const { id } = extractPathParams('/regulation-updates/:id', path);
-    
+
     if (method === 'GET') {
       // Public endpoint - no auth required for reading
       return regulationController.getById(request);
@@ -294,11 +321,15 @@ export async function apiRoutes(request, path) {
     if (method === 'PUT' || method === 'PATCH') {
       const authError = await authMiddleware(request);
       if (authError) return authError;
+      const roleError = enforceRole(request.user, 'RISK_ASSESSMENT');
+      if (roleError) return roleError;
       return regulationController.update(request);
     }
     if (method === 'DELETE') {
       const authError = await authMiddleware(request);
       if (authError) return authError;
+      const roleError = enforceRole(request.user, 'RISK_ASSESSMENT');
+      if (roleError) return roleError;
       return regulationController.delete(request);
     }
   }

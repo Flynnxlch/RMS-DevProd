@@ -6,19 +6,19 @@ export const config = {
   port: parseInt(env.PORT || '3127', 10),
   nodeEnv: env.NODE_ENV || 'development',
   
-  // CORS configuration
+  // CORS configuration — CORS_ORIGIN is required in production; dev falls back to localhost.
   cors: {
-    // Allow both localhost and local network IP
-    // Can be overridden via CORS_ORIGIN env variable (comma-separated for multiple origins)
-    origin: env.CORS_ORIGIN 
-      ? (env.CORS_ORIGIN.includes(',') 
+    origin: (() => {
+      if (env.CORS_ORIGIN) {
+        return env.CORS_ORIGIN.includes(',')
           ? env.CORS_ORIGIN.split(',').map(o => o.trim())
-          : env.CORS_ORIGIN)
-      : [
-          'http://localhost:5173',
-          'http://127.0.0.1:5173',
-          'http://192.168.8.197:5173', // Your local network IP
-        ],
+          : env.CORS_ORIGIN;
+      }
+      if (env.NODE_ENV === 'production') {
+        throw new Error('CORS_ORIGIN environment variable must be set in production');
+      }
+      return ['http://localhost:5173', 'http://127.0.0.1:5173'];
+    })(),
     methods: 'GET, POST, PUT, DELETE, PATCH, OPTIONS',
     headers: 'Content-Type, Authorization, X-Requested-With',
   },

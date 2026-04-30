@@ -107,7 +107,7 @@ export const authController = {
       const token = jwt.sign(
         { userId: user.id, email: user.email, rememberMe, sessionId: sessionInfo.sessionId },
         config.jwt.secret,
-        { expiresIn: tokenExpiry }
+        { algorithm: 'HS256', expiresIn: tokenExpiry }
       );
 
       // Return user data (without password)
