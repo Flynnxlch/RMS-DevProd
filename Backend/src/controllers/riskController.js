@@ -1,4 +1,5 @@
 import { prisma } from '../lib/prisma.js';
+import { requireRole } from '../middleware/auth.js';
 import { clearCacheByPattern, deleteCache, getCache, setCache } from '../utils/cache.js';
 import { computeRiskScore, generateRiskId, getRiskLevel } from '../utils/risk.js';
 import { deriveApprovalStatus } from './approvalController.js';
@@ -469,28 +470,21 @@ export const riskController = {
       }
 
       // Check access
-      // Special case: If user has region_cabang = 'KPS', allow access to all risks
       if (user.userRole === 'RISK_CHAMPION') {
-        // If region_cabang is not KPS, check if risk.regionCode matches
-        if (user.regionCabang && user.regionCabang !== 'KPS' && risk.regionCode !== user.regionCabang) {
+        if (user.regionCabang && risk.regionCode && risk.regionCode !== user.regionCabang) {
           return new Response(
             JSON.stringify({ error: 'Access denied' }),
             { status: 403, headers: { 'Content-Type': 'application/json' } }
           );
         }
-        // If region_cabang is KPS, allow access (no check needed)
       }
       if (user.userRole === 'RISK_OFFICER') {
-        // For RISK_OFFICER with region_cabang = 'KPS', allow access to all risks
-        // For RISK_OFFICER with region_cabang != 'KPS', check if risk.regionCode matches
-        if (user.regionCabang && user.regionCabang !== 'KPS' && risk.regionCode !== user.regionCabang) {
+        if (user.regionCabang && risk.regionCode && risk.regionCode !== user.regionCabang) {
           return new Response(
             JSON.stringify({ error: 'Access denied' }),
             { status: 403, headers: { 'Content-Type': 'application/json' } }
           );
         }
-        // Note: We don't check userId here because requirement is to show all risks from all regions if KPS
-        // If you want to also check userId for non-KPS users, you can add: && risk.userId !== user.id
       }
 
       // Calculate score and level
@@ -712,21 +706,8 @@ export const riskController = {
         );
       }
 
-      // Auto-detect cabang from user if not provided
-      // For RISK_CHAMPION and RISK_OFFICER, always use their regionCabang (cannot override)
-      // For RISK_ASSESSMENT, use provided regionCode or default to user.regionCabang or 'KPS'
-      let finalRegionCode;
-      if (user.userRole === 'RISK_ASSESSMENT') {
-        // RISK_ASSESSMENT can specify any regionCode
-        finalRegionCode = regionCode || user.regionCabang || 'KPS';
-      } else {
-        // RISK_CHAMPION and RISK_OFFICER: always use their regionCabang
-        finalRegionCode = user.regionCabang || 'KPS';
-        // If they try to send a different regionCode, ignore it and use their regionCabang
-        if (regionCode && regionCode !== user.regionCabang && process.env.NODE_ENV !== 'production') {
-          console.warn(`User ${user.id} (${user.userRole}) tried to set regionCode to ${regionCode}, but using their regionCabang ${user.regionCabang} instead`);
-        }
-      }
+      // RISK_OFFICER always uses their own regionCabang; ignore any client-supplied regionCode
+      const finalRegionCode = user.regionCabang || 'KPS';
 
       // Generate risk ID — uses riskDate if provided so ID reflects the risk's date
       const riskId = generateRiskId(riskDate || null);
@@ -819,7 +800,7 @@ export const riskController = {
         );
       }
 
-      // Check if risk exists and user has access
+      // Check if risk exists
       const existingRisk = await prisma.risk.findUnique({
         where: { id: riskId },
       });
@@ -831,39 +812,9 @@ export const riskController = {
         );
       }
 
-      // Check access
-      // Special case: If user has region_cabang = 'KPS', allow access to all risks
-      if (user.userRole === 'RISK_CHAMPION') {
-        // If region_cabang is not KPS, check if risk.regionCode matches
-        if (user.regionCabang && user.regionCabang !== 'KPS' && existingRisk.regionCode !== user.regionCabang) {
-          return new Response(
-            JSON.stringify({ error: 'Access denied' }),
-            { status: 403, headers: { 'Content-Type': 'application/json' } }
-          );
-        }
-      }
-      if (user.userRole === 'RISK_OFFICER') {
-        // For RISK_OFFICER with region_cabang = 'KPS', allow access to all risks
-        // For RISK_OFFICER with region_cabang != 'KPS', check if risk.regionCode matches
-        if (user.regionCabang && user.regionCabang !== 'KPS' && existingRisk.regionCode !== user.regionCabang) {
-          return new Response(
-            JSON.stringify({ error: 'Access denied' }),
-            { status: 403, headers: { 'Content-Type': 'application/json' } }
-          );
-        }
-        // Also check userId for RISK_OFFICER (they can only update their own risks)
-        if (existingRisk.userId !== user.id) {
-          return new Response(
-            JSON.stringify({ error: 'Access denied' }),
-            { status: 403, headers: { 'Content-Type': 'application/json' } }
-          );
-        }
-      }
-
       const body = await request.json();
       const updateData = {};
 
-      // Only update provided fields (sesuai dengan schema baru)
       if (body.riskEvent !== undefined) updateData.riskEvent = body.riskEvent.trim();
       if (body.title !== undefined) updateData.title = body.title.trim();
       if (body.riskDate !== undefined) updateData.riskDate = body.riskDate ? new Date(body.riskDate) : null;
@@ -875,17 +826,9 @@ export const riskController = {
       if (body.riskImpactExplanation !== undefined) updateData.riskImpactExplanation = body.riskImpactExplanation;
       if (body.category !== undefined) updateData.category = body.category;
       if (body.riskCategoryType !== undefined) updateData.riskCategoryType = body.riskCategoryType;
-      // Only RISK_ASSESSMENT can reassign a risk to a different region
-      if (body.regionCode !== undefined && user.userRole === 'RISK_ASSESSMENT') {
-        updateData.regionCode = body.regionCode;
-      }
-      // Only RISK_CHAMPION and RISK_ASSESSMENT can toggle evaluation request flag
-      if (body.evaluationRequested !== undefined && ['RISK_CHAMPION', 'RISK_ASSESSMENT'].includes(user.userRole)) {
-        updateData.evaluationRequested = body.evaluationRequested;
-      }
-      if (body.evaluationRequestedAt !== undefined && ['RISK_CHAMPION', 'RISK_ASSESSMENT'].includes(user.userRole)) {
-        updateData.evaluationRequestedAt = body.evaluationRequestedAt ? new Date(body.evaluationRequestedAt) : null;
-      }
+      if (body.regionCode !== undefined) updateData.regionCode = body.regionCode;
+      if (body.evaluationRequested !== undefined) updateData.evaluationRequested = body.evaluationRequested;
+      if (body.evaluationRequestedAt !== undefined) updateData.evaluationRequestedAt = body.evaluationRequestedAt ? new Date(body.evaluationRequestedAt) : null;
 
       const risk = await prisma.risk.update({
         where: { id: riskId },
@@ -939,10 +882,8 @@ export const riskController = {
       }
 
       // Check access
-      // Special case: If user has region_cabang = 'KPS', allow access to all risks
       if (user.userRole === 'RISK_CHAMPION') {
-        // If region_cabang is not KPS, check if risk.regionCode matches
-        if (user.regionCabang && user.regionCabang !== 'KPS' && existingRisk.regionCode !== user.regionCabang) {
+        if (user.regionCabang && existingRisk.regionCode && existingRisk.regionCode !== user.regionCabang) {
           return new Response(
             JSON.stringify({ error: 'Access denied' }),
             { status: 403, headers: { 'Content-Type': 'application/json' } }
@@ -950,15 +891,12 @@ export const riskController = {
         }
       }
       if (user.userRole === 'RISK_OFFICER') {
-        // For RISK_OFFICER with region_cabang = 'KPS', allow access to all risks
-        // For RISK_OFFICER with region_cabang != 'KPS', check if risk.regionCode matches
-        if (user.regionCabang && user.regionCabang !== 'KPS' && existingRisk.regionCode !== user.regionCabang) {
+        if (user.regionCabang && existingRisk.regionCode && existingRisk.regionCode !== user.regionCabang) {
           return new Response(
             JSON.stringify({ error: 'Access denied' }),
             { status: 403, headers: { 'Content-Type': 'application/json' } }
           );
         }
-        // Also check userId for RISK_OFFICER (they can only delete their own risks)
         if (existingRisk.userId !== user.id) {
           return new Response(
             JSON.stringify({ error: 'Access denied' }),
@@ -1012,23 +950,13 @@ export const riskController = {
         );
       }
 
-      // Enforce ownership / region access before allowing analysis writes
-      if (user.userRole === 'RISK_OFFICER') {
-        if (risk.userId !== user.id) {
-          return new Response(
-            JSON.stringify({ error: 'Access denied' }),
-            { status: 403, headers: { 'Content-Type': 'application/json' } }
-          );
-        }
-      } else if (user.userRole === 'RISK_CHAMPION') {
-        if (user.regionCabang && user.regionCabang !== 'KPS' && risk.regionCode !== user.regionCabang) {
-          return new Response(
-            JSON.stringify({ error: 'Access denied' }),
-            { status: 403, headers: { 'Content-Type': 'application/json' } }
-          );
-        }
+      // RISK_OFFICER can only analyse their own risks
+      if (risk.userId !== user.id) {
+        return new Response(
+          JSON.stringify({ error: 'Access denied' }),
+          { status: 403, headers: { 'Content-Type': 'application/json' } }
+        );
       }
-      // RISK_ASSESSMENT can write analysis on any risk
 
       const body = await request.json();
       const {
@@ -1154,19 +1082,18 @@ export const riskController = {
         );
       }
 
-      // Only RISK_OFFICER, RISK_CHAMPION, and RISK_ASSESSMENT can create/update mitigations
-      if (!['RISK_OFFICER', 'RISK_CHAMPION', 'RISK_ASSESSMENT'].includes(user.userRole)) {
+      if (!requireRole(user, 'RISK_OFFICER', 'RISK_CHAMPION')) {
         return new Response(
-          JSON.stringify({ error: 'Access denied. Only Risk Officer, Risk Champion, and Risk Assessment can manage mitigation plans.' }),
+          JSON.stringify({ error: 'Access denied. Only Risk Officer and Risk Champion can manage mitigation plans.' }),
           { status: 403, headers: { 'Content-Type': 'application/json' } }
         );
       }
 
-      // Verify risk exists and get analysis to ensure inherentScore is from analysis
       const risk = await prisma.risk.findUnique({
         where: { id: riskId },
         include: {
           analysis: true,
+          mitigation: true,
         },
       });
 
@@ -1177,21 +1104,11 @@ export const riskController = {
         );
       }
 
-      // Enforce ownership / region access before allowing mitigation writes
-      if (user.userRole === 'RISK_OFFICER') {
-        if (risk.userId !== user.id) {
-          return new Response(
-            JSON.stringify({ error: 'Access denied' }),
-            { status: 403, headers: { 'Content-Type': 'application/json' } }
-          );
-        }
-      } else if (user.userRole === 'RISK_CHAMPION') {
-        if (user.regionCabang && user.regionCabang !== 'KPS' && risk.regionCode !== user.regionCabang) {
-          return new Response(
-            JSON.stringify({ error: 'Access denied' }),
-            { status: 403, headers: { 'Content-Type': 'application/json' } }
-          );
-        }
+      if (user.regionCabang && risk.regionCode && risk.regionCode !== user.regionCabang) {
+        return new Response(
+          JSON.stringify({ error: 'Access denied' }),
+          { status: 403, headers: { 'Content-Type': 'application/json' } }
+        );
       }
 
       const body = await request.json();
@@ -1225,11 +1142,10 @@ export const riskController = {
       }
 
       // Determine currentScoreSetAt: stamp once on first-ever set, preserve on edits, clear when removed
-      const existingMitigation = await prisma.riskMitigation.findUnique({ where: { riskId } });
       const newCurrentScore = currentScore !== undefined ? Number(currentScore) : null;
       const currentScoreSetAt =
         newCurrentScore && newCurrentScore > 0
-          ? (existingMitigation?.currentScore > 0 ? existingMitigation.currentScoreSetAt : new Date())
+          ? (risk.mitigation?.currentScore > 0 ? risk.mitigation.currentScoreSetAt : new Date())
           : null;
 
       // Upsert mitigation
@@ -1332,7 +1248,7 @@ export const riskController = {
           );
         }
       } else if (user.userRole === 'RISK_CHAMPION') {
-        if (user.regionCabang && user.regionCabang !== 'KPS' && risk.regionCode !== user.regionCabang) {
+        if (user.regionCabang && risk.regionCode && risk.regionCode !== user.regionCabang) {
           return new Response(
             JSON.stringify({ error: 'Access denied' }),
             { status: 403, headers: { 'Content-Type': 'application/json' } }

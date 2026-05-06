@@ -14,7 +14,6 @@ export function getRiskStatus(risk) {
   if (!risk) return 'risiko-baru';
 
   const hasMeasurement = !!(risk.hasMeasurement || risk.measurement);
-  const hasMitigationPlan = !!(risk.mitigationPlan && risk.mitigationPlan.trim().length > 0);
   const currentScore = Number(risk.currentScore ?? 0);
 
   // Phase 1: No measurement yet → check approval state
@@ -32,12 +31,12 @@ export function getRiskStatus(risk) {
     return 'mitigate';
   }
 
-  // Phase 3: Has measurement, no currentScore → check if mitigation plan has been submitted
-  if (hasMitigationPlan) {
+  // Phase 3: Has measurement, no currentScore → 'Ajukan Evaluasi' finalizes mitigation into Planned
+  if (risk.evaluationRequested) {
     return 'planned';
   }
 
-  // Phase 4: Has measurement, no mitigation plan yet → determine from treatmentOption
+  // Phase 4: Has measurement, evaluation not yet requested → determine from treatmentOption
   const treatmentOption = (risk.measurement?.treatmentOption || '').toLowerCase();
   if (treatmentOption.includes('accept') || treatmentOption.includes('monitor')) {
     return 'monitor';

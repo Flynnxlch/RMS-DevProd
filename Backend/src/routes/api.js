@@ -139,6 +139,8 @@ export async function apiRoutes(request, path) {
     if (method === 'POST') {
       const authError = await authMiddleware(request);
       if (authError) return authError;
+      const roleError = enforceRole(request.user, 'RISK_OFFICER');
+      if (roleError) return roleError;
       return riskController.create(request);
     }
   }
@@ -155,6 +157,8 @@ export async function apiRoutes(request, path) {
     if (method === 'PUT' || method === 'PATCH') {
       const authError = await authMiddleware(request);
       if (authError) return authError;
+      const roleError = enforceRole(request.user, 'RISK_ASSESSMENT');
+      if (roleError) return roleError;
       return riskController.update(request, riskId);
     }
     if (method === 'DELETE') {
@@ -167,10 +171,12 @@ export async function apiRoutes(request, path) {
   // Risk analysis endpoints
   if (matchRoute('/risks/:riskId/analysis', path)) {
     const { riskId } = extractPathParams('/risks/:riskId/analysis', path);
-    
+
     if (method === 'POST' || method === 'PUT') {
       const authError = await authMiddleware(request);
       if (authError) return authError;
+      const roleError = enforceRole(request.user, 'RISK_OFFICER');
+      if (roleError) return roleError;
       return riskController.createOrUpdateAnalysis(request, riskId);
     }
   }

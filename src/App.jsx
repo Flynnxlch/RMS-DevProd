@@ -164,11 +164,11 @@ function AppRoutes() {
       <Route
         path="/risks/:riskId/risk-analysis"
         element={
-          <ProtectedRoute>
+          <RoleProtectedRoute allowedRoles={['RISK_OFFICER']}>
             <AppWrapper>
               <InherentRiskEvaluation />
             </AppWrapper>
-          </ProtectedRoute>
+          </RoleProtectedRoute>
         }
       />
 
