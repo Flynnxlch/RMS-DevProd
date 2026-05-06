@@ -475,7 +475,7 @@ export default function MitigationPlanForm({
                 },
               });
             }}
-            className="w-full sm:w-auto px-4 py-2 text-sm font-semibold text-white bg-[#ffc107] rounded-lg hover:bg-[#e0a800] transition-colors"
+            className="w-full sm:w-auto px-4 py-2 text-sm font-semibold text-white bg-[#28ad03] rounded-lg hover:bg-[#49e41e] transition-colors"
           >
             Ajukan Evaluasi
           </button>
