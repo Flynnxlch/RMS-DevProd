@@ -10,6 +10,7 @@ import bg2 from '../assets/background/bg2.jpeg';
 import bg3 from '../assets/background/bg3.JPG';
 import bg4 from '../assets/background/bg4.jpg';
 import bg5 from '../assets/background/bg5.jpg';
+import bg6 from '../assets/background/bg6.JPG';
 
 
 export default function Login() {
@@ -46,7 +47,7 @@ export default function Login() {
   const [showForgotPasswordSuccess, setShowForgotPasswordSuccess] = useState(false);
 
   // Carousel state
-  const images = [bg1, bg2, bg3, bg4, bg5];
+  const images = [bg1, bg2, bg3, bg4, bg5, bg6];
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
 
   // Auto-rotate carousel
