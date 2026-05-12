@@ -26,11 +26,10 @@ async function testConnection() {
   } catch (error) {
     console.error('❌ Database connection failed:', error.message);
     console.error('\nTroubleshooting steps:');
-    console.error('1. Check your DATABASE_URL in Backend/.env file');
-    console.error('2. Verify your Supabase database is running and accessible');
+    console.error('1. Check if your database is Correct');
+    console.error('2. Verify your database is running and accessible');
     console.error('3. Check your network connection');
-    console.error('4. For Supabase: Ensure your database is not paused');
-    console.error('5. Confirm DATABASE_URL uses the session pooler (port 5432 on pooler.supabase.com)');
+    console.error('4. Ensure your database is not paused');
   }
 }
 
