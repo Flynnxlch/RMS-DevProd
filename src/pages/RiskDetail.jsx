@@ -168,8 +168,25 @@ export default function RiskDetail() {
         
         // Refresh risks
         await refreshRisks();
+      } else if (activeTab === 'evaluation') {
+        const evaluationPayload = {
+          evaluationStatus: payload.evaluationStatus,
+          evaluationNotes: payload.evaluationNotes,
+          evaluationDate: payload.evaluationDate,
+          evaluator: payload.evaluator,
+          evaluatorNote: payload.evaluatorNote,
+          currentImpactDescription: payload.currentImpactDescription,
+          currentProbabilityDescription: payload.currentProbabilityDescription,
+        };
+
+        await apiRequest(API_ENDPOINTS.risks.evaluation(risk.id), {
+          method: 'POST',
+          body: JSON.stringify(evaluationPayload),
+        });
+
+        await refreshRisks();
       }
-      
+
       setIsEditModalOpen(false);
     } catch (error) {
       logger.error('Error saving:', error);

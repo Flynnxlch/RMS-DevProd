@@ -164,35 +164,41 @@ export async function apiRoutes(request, path) {
     }
   }
   
-  // Risk analysis endpoints
+  // Risk analysis endpoints (all three roles: RISK_ASSESSMENT edits via RiskDetail, RISK_OFFICER/RISK_CHAMPION via wizard)
   if (matchRoute('/risks/:riskId/analysis', path)) {
     const { riskId } = extractPathParams('/risks/:riskId/analysis', path);
-    
+
     if (method === 'POST' || method === 'PUT') {
       const authError = await authMiddleware(request);
       if (authError) return authError;
+      const roleError = enforceRole(request.user, 'RISK_OFFICER', 'RISK_CHAMPION', 'RISK_ASSESSMENT');
+      if (roleError) return roleError;
       return riskController.createOrUpdateAnalysis(request, riskId);
     }
   }
-  
-  // Risk mitigation endpoints
+
+  // Risk mitigation endpoints (all three roles: RISK_ASSESSMENT edits via RiskDetail, RISK_OFFICER/RISK_CHAMPION via their pages)
   if (matchRoute('/risks/:riskId/mitigation', path)) {
     const { riskId } = extractPathParams('/risks/:riskId/mitigation', path);
-    
+
     if (method === 'POST' || method === 'PUT') {
       const authError = await authMiddleware(request);
       if (authError) return authError;
+      const roleError = enforceRole(request.user, 'RISK_OFFICER', 'RISK_CHAMPION', 'RISK_ASSESSMENT');
+      if (roleError) return roleError;
       return riskController.createOrUpdateMitigation(request, riskId);
     }
   }
-  
-  // Risk evaluation endpoints
+
+  // Risk evaluation endpoints (all three roles)
   if (matchRoute('/risks/:riskId/evaluations', path)) {
     const { riskId } = extractPathParams('/risks/:riskId/evaluations', path);
 
     if (method === 'POST' || method === 'PUT') {
       const authError = await authMiddleware(request);
       if (authError) return authError;
+      const roleError = enforceRole(request.user, 'RISK_OFFICER', 'RISK_CHAMPION', 'RISK_ASSESSMENT');
+      if (roleError) return roleError;
       return riskController.createOrUpdateEvaluation(request, riskId);
     }
   }
